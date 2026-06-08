@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { X, CheckCircle2, AlertCircle, Timer, TerminalSquare } from 'lucide-react';
 
 export default function Terminal({ output, onClose }) {
   if (!output) return null;
@@ -6,77 +6,66 @@ export default function Terminal({ output, onClose }) {
   const hasError = output.error && output.error.trim().length > 0;
 
   return (
-    <motion.div
-      initial={{ height: 0, opacity: 0 }}
-      animate={{ height: '200px', opacity: 1 }}
-      exit={{ height: 0, opacity: 0 }}
-      style={{
-        background: '#0D0D14',
-        borderTop: `1px solid ${hasError ? 'var(--accent-red)' : 'var(--accent-green)'}`,
-        fontFamily: 'JetBrains Mono, monospace',
-        fontSize: '13px',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-      }}
-    >
-      {/* Terminal header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: '8px 16px',
-        borderBottom: '1px solid var(--bg-elevated)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{
-            color: hasError ? 'var(--accent-red)' : 'var(--accent-green)',
-            fontWeight: 600,
-            fontSize: '12px',
-          }}>
-            {hasError ? '✗ Error' : '✓ Output'}
-          </span>
+    <div className="flex flex-col h-full w-full bg-[#0A0A0F] font-mono selection:bg-emerald-500/30">
+      
+      {/* ── Terminal Header ───────────────────── */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-[#12121A] border-b border-zinc-800/80 shrink-0">
+        <div className="flex items-center gap-5">
+          
+          {/* Status Indicator */}
+          <div className="flex items-center gap-1.5">
+            {hasError ? (
+              <>
+                <AlertCircle size={14} className="text-red-400" />
+                <span className="text-xs font-bold tracking-wide text-red-400">Execution Error</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={14} className="text-emerald-400" />
+                <span className="text-xs font-bold tracking-wide text-emerald-400">Output Success</span>
+              </>
+            )}
+          </div>
+
+          <div className="h-4 w-[1px] bg-zinc-700/50"></div>
+          
+          {/* Metadata */}
           {output.status && (
-            <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-              {output.status}
-            </span>
+            <div className="flex items-center gap-1.5 text-zinc-500 text-xs">
+              <TerminalSquare size={13} />
+              <span>{output.status}</span>
+            </div>
           )}
-          {output.executionTime > 0 && (
-            <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-              ⏱ {output.executionTime}s
-            </span>
+          
+          {output.executionTime !== undefined && (
+            <div className="flex items-center gap-1.5 text-zinc-500 text-xs">
+              <Timer size={13} />
+              <span>{output.executionTime}s</span>
+            </div>
           )}
         </div>
+
+        {/* Close Action */}
         <button
           onClick={onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer',
-            fontSize: '16px',
-          }}
+          className="text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 p-1 rounded transition-colors"
+          title="Close Terminal"
         >
-          ✕
+          <X size={16} />
         </button>
       </div>
 
-      {/* Terminal output */}
-      <div style={{
-        padding: '12px 16px',
-        overflowY: 'auto',
-        flex: 1,
-      }}>
-        {hasError ? (
-          <pre style={{ color: 'var(--accent-red)', margin: 0, whiteSpace: 'pre-wrap' }}>
-            {output.error}
-          </pre>
-        ) : (
-          <pre style={{ color: 'var(--accent-green)', margin: 0, whiteSpace: 'pre-wrap' }}>
-            {output.output || '(no output)'}
-          </pre>
-        )}
+      {/* ── Terminal Body ─────────────────────── */}
+      <div className="flex-1 p-4 overflow-y-auto">
+        <pre 
+          className={`m-0 text-[13px] leading-relaxed whitespace-pre-wrap font-medium ${
+            hasError ? 'text-red-400' : 'text-zinc-300'
+          }`}
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          {hasError ? output.error : (output.output || '(no output)')}
+        </pre>
       </div>
-    </motion.div>
+    </div>
   );
 }

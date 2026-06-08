@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { ServerCrash, ArrowLeft } from 'lucide-react';
 
 export default class ErrorBoundary extends Component {
   state = { hasError: false, error: null };
@@ -10,49 +11,36 @@ export default class ErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          minHeight: '100vh',
-          background: 'var(--bg-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexDirection: 'column',
-          gap: '16px',
-          padding: '24px',
-        }}>
-          <div style={{ fontSize: '48px' }}>💥</div>
-          <h2 style={{
-            fontFamily: 'Playfair Display, serif',
-            color: 'var(--text-primary)',
-            fontSize: '1.5rem',
-          }}>
-            Something went wrong
-          </h2>
-          <p style={{
-            color: 'var(--text-secondary)',
-            fontSize: '14px',
-            textAlign: 'center',
-            maxWidth: '400px',
-          }}>
-            {this.state.error?.message || 'An unexpected error occurred'}
-          </p>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-[#0A0A0F] p-6 font-sans selection:bg-red-500/30">
+          
+          {/* Icon Container */}
+          <div className="w-16 h-16 mb-6 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shadow-lg shadow-red-500/5">
+            <ServerCrash className="w-8 h-8 text-red-500" />
+          </div>
+          
+          {/* Text Content */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-zinc-100 mb-2" style={{ fontFamily: "'Playfair Display', serif" }}>
+              Something went wrong
+            </h2>
+            <p className="text-sm text-zinc-500 max-w-md mx-auto leading-relaxed">
+              {this.state.error?.message || 'An unexpected layout or rendering error occurred in the workspace. Please return to the dashboard and try again.'}
+            </p>
+          </div>
+          
+          {/* Action Button */}
           <button
             onClick={() => window.location.href = '/dashboard'}
-            style={{
-              background: 'var(--accent-purple)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '10px 24px',
-              cursor: 'pointer',
-              fontSize: '14px',
-            }}
+            className="flex items-center gap-2 px-6 py-2.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-300 hover:text-white text-sm font-semibold rounded-xl transition-all border border-zinc-700/50 hover:border-zinc-700"
           >
+            <ArrowLeft size={16} /> 
             Back to Dashboard
           </button>
+
         </div>
       );
     }
+    
     return this.props.children;
   }
 }

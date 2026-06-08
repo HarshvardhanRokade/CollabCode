@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
+import { ArrowLeft, Link as LinkIcon, History, Camera, Play, Loader2, WifiOff, RefreshCw } from 'lucide-react';
+
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../api/axiosInstance';
 import { startConnection, stopConnection } from '../api/signalrConnection';
@@ -50,7 +52,7 @@ export default function Editor() {
 
         conn.onreconnecting(() => {
           setConnectionStatus('reconnecting');
-          toast('Reconnecting...', { icon: '🔄' });
+          toast('Reconnecting...', { icon: <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" /> });
         });
         
         conn.onreconnected(() => {
@@ -67,7 +69,7 @@ export default function Editor() {
         });
 
         conn.on('UserLeft', (userName) => {
-          toast(`${userName} left`, { icon: '👋' });
+          toast(`${userName} left`);
         });
 
         conn.on('RoomUsersUpdated', (users) => {
@@ -139,7 +141,7 @@ export default function Editor() {
       await axiosInstance.post(`/rooms/${roomId}/snapshots`, {
         message: message || `Snapshot at ${new Date().toLocaleTimeString()}`
       });
-      toast.success('Snapshot saved! 📸');
+      toast.success('Snapshot saved!');
     } catch {
       toast.error('Failed to save snapshot');
     }
@@ -153,202 +155,154 @@ export default function Editor() {
 
   if (isConnecting) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'var(--bg-primary)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexDirection: 'column',
-        gap: '16px',
-      }}>
-        <div style={{ color: 'var(--accent-purple)', fontSize: '24px' }}>⚡</div>
-        <p style={{ color: 'var(--text-secondary)' }}>Connecting to room...</p>
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#1e1e1e] text-zinc-400 gap-4">
+        <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
+        <p className="text-sm tracking-wide">Connecting to workspace...</p>
       </div>
     );
   }
 
   return (
-    <div style={{
-      height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--bg-primary)',
-      overflow: 'hidden',
-    }}>
-      <Toaster />
+    <div className="flex flex-col h-screen w-full bg-[#1e1e1e] text-zinc-300 overflow-hidden font-sans">
+      <Toaster 
+        toastOptions={{
+          style: { background: '#27272a', color: '#e4e4e7', border: '1px solid #3f3f46' }
+        }} 
+      />
 
       {/* ── Top Bar ─────────────────────────────── */}
-      <div style={{
-        height: '56px',
-        background: 'var(--bg-surface)',
-        borderBottom: '1px solid var(--bg-elevated)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 20px',
-        flexShrink: 0,
-        gap: '12px',
-      }}>
-        {/* Left */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+      <header className="flex items-center justify-between h-[60px] px-4 bg-[#181818] border-b border-zinc-800 shrink-0">
+        
+        {/* Left: Navigation & Info */}
+        <div className="flex items-center gap-4 min-w-0">
+          <button
             onClick={() => navigate('/dashboard')}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--bg-elevated)',
-              color: 'var(--text-secondary)',
-              borderRadius: '8px',
-              padding: '6px 12px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              flexShrink: 0,
-            }}
+            className="text-zinc-400 hover:text-zinc-100 transition-colors text-sm font-medium flex items-center gap-1.5"
           >
-            ← Back
-          </motion.button>
-          <span style={{
-            fontFamily: 'Playfair Display, serif',
-            color: 'var(--text-primary)',
-            fontSize: '16px',
-            fontWeight: 600,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}>
+            <ArrowLeft size={16} />
+            Back
+          </button>
+          
+          <div className="h-5 w-[1px] bg-zinc-700"></div>
+
+          <span className="text-zinc-100 text-[15px] font-semibold truncate tracking-wide">
             {room?.name}
           </span>
+
           {connectionStatus !== 'connected' && (
             <motion.span
               animate={{ opacity: [1, 0.5, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
-              style={{
-                fontSize: '12px',
-                color: connectionStatus === 'reconnecting'
-                  ? 'var(--accent-gold)'
-                  : 'var(--accent-red)',
-                background: connectionStatus === 'reconnecting'
-                  ? '#F5A62322' : '#FF475722',
-                padding: '3px 10px',
-                borderRadius: '20px',
-                border: `1px solid ${connectionStatus === 'reconnecting'
-                  ? 'var(--accent-gold)' : 'var(--accent-red)'}`,
-                flexShrink: 0,
-              }}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
+                connectionStatus === 'reconnecting' 
+                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
+                  : 'bg-red-500/10 text-red-400 border-red-500/20'
+              }`}
             >
-              {connectionStatus === 'reconnecting'
-                ? '🔄 Reconnecting...' : '❌ Disconnected'}
+              {connectionStatus === 'reconnecting' ? (
+                <><RefreshCw size={12} className="animate-spin" /> Reconnecting...</>
+              ) : (
+                <><WifiOff size={12} /> Disconnected</>
+              )}
             </motion.span>
           )}
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+
+          <button
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
-              toast.success('Room URL copied! 🔗');
+              toast.success('Room URL copied!');
             }}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--bg-elevated)',
-              color: 'var(--text-secondary)',
-              borderRadius: '8px',
-              padding: '5px 12px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              flexShrink: 0,
-            }}
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
           >
-            🔗 Share
-          </motion.button>
+            <LinkIcon size={14} />
+            Share
+          </button>
         </div>
-        {/* Center */}
-        <CollaboratorsList users={activeUsers} />
-        {/* Right */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          flexShrink: 0,
-        }}>
+
+        {/* Center: Collaborators */}
+        <div className="hidden md:flex flex-1 justify-center">
+          <CollaboratorsList users={activeUsers} />
+        </div>
+
+        {/* Right: Actions */}
+        <div className="flex items-center gap-3 shrink-0">
           <LanguageSelector value={language} onChange={handleLanguageChange} />
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          
+          <div className="h-5 w-[1px] bg-zinc-700 mx-1"></div>
+
+          <button
             onClick={() => setShowHistory(true)}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--accent-purple)',
-              color: 'var(--accent-purple)',
-              borderRadius: '8px',
-              padding: '6px 14px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-            }}
+            className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-white px-3 py-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 border border-zinc-700 transition-colors"
           >
-            📋 History
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            <History size={14} />
+            History
+          </button>
+
+          <button
             onClick={handleSaveSnapshot}
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--accent-gold)',
-              color: 'var(--accent-gold)',
-              borderRadius: '8px',
-              padding: '6px 14px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 600,
-            }}
+            className="flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 px-3 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
           >
-            📸 Snapshot
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+            <Camera size={14} />
+            Snapshot
+          </button>
+
+          {/* FIX: High-Contrast Solid Run Button */}
+          <button
             onClick={handleRunCode}
             disabled={isExecuting}
-            style={{
-              background: isExecuting
-                ? 'var(--bg-elevated)'
-                : 'var(--accent-green)',
-              color: isExecuting ? 'var(--text-secondary)' : '#000',
-              border: 'none',
-              borderRadius: '8px',
-              padding: '6px 20px',
-              cursor: isExecuting ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: 700,
-            }}
+            className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ${
+              isExecuting 
+                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' 
+                : 'bg-emerald-500 hover:bg-emerald-400 text-emerald-950 shadow-emerald-500/20'
+            }`}
           >
-            {isExecuting ? '⏳ Running...' : '▶ Run'}
-          </motion.button>
+            {isExecuting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                Running...
+              </>
+            ) : (
+              <>
+                <Play size={16} fill="currentColor" />
+                Run
+              </>
+            )}
+          </button>
         </div>
-      </div>
+      </header>
 
-      {/* ── Editor ──────────────────────────────── */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <CodeEditor
-          roomId={roomId}
-          language={language}
-          connection={connection}
-          onMount={(editor) => { editorRef.current = editor; }}
-        />
-      </div>
-
-      {/* ── Terminal ────────────────────────────── */}
-      <AnimatePresence>
-        {output && (
-          <Terminal
-            output={output}
-            onClose={() => setOutput(null)}
+      {/* ── Main Workspace ──────────────────────── */}
+      {/* FIX: min-h-0 prevents flex children from blowing out the height */}
+      <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
+        
+        {/* Editor Pane */}
+        <div className="flex-1 min-h-0 relative">
+          <CodeEditor
+            roomId={roomId}
+            language={language}
+            connection={connection}
+            onMount={(editor) => { editorRef.current = editor; }}
           />
-        )}
-      </AnimatePresence>
+        </div>
+
+        {/* Terminal Pane (Bottom Docked) */}
+        <AnimatePresence>
+          {output && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: '35vh', opacity: 1 }} // Fix: Hard boundary via viewport height
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+              className="shrink-0 w-full border-t border-zinc-800 bg-[#0A0A0F] z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]"
+            >
+              <Terminal
+                output={output}
+                onClose={() => setOutput(null)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
 
       <VersionHistory
         roomId={roomId}

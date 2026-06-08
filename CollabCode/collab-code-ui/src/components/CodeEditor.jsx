@@ -106,26 +106,36 @@ export default function CodeEditor({
   }[language] || 'javascript';
 
   return (
-    <MonacoEditor
-      height="100%"
-      language={monacoLanguage}
-      theme="vs-dark"
-      options={{
-        fontSize: 15,
-        fontFamily: 'JetBrains Mono, monospace',
-        fontLigatures: true,
-        minimap: { enabled: false },
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-        tabSize: 2,
-        wordWrap: 'on',
-        lineNumbers: 'on',
-        renderLineHighlight: 'all',
-        cursorBlinking: 'smooth',
-        smoothScrolling: true,
-        padding: { top: 16 },
-      }}
-      onMount={handleMount}
-    />
+    <div className="w-full h-full bg-[#1e1e1e]">
+      <MonacoEditor
+        height="100%"
+        width="100%"
+        language={monacoLanguage}
+        theme="vs-dark"
+        options={{
+          fontSize: 14,
+          fontFamily: "'JetBrains Mono', monospace",
+          fontLigatures: true,
+          minimap: { enabled: false },
+          scrollBeyondLastLine: false,
+          automaticLayout: true,
+          tabSize: 2,
+          wordWrap: 'on',
+          lineNumbers: 'on',
+          renderLineHighlight: 'all',
+          cursorBlinking: 'smooth',
+          smoothScrolling: true,
+          padding: { top: 24, bottom: 24 },
+          overviewRulerBorder: false,
+          hideCursorInOverviewRuler: true,
+          scrollbar: {
+            verticalScrollbarSize: 8,
+            horizontalScrollbarSize: 8,
+            useShadows: false,
+          }
+        }}
+        onMount={handleMount}
+      />
+    </div>
   );
 }

@@ -1,36 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
 @import "tailwindcss";
 
-/* ── Design System Variables ─────────────────────── */
-:root {
-  --bg-primary: #0A0A0F;
-  --bg-surface: #12121A;
-  --bg-elevated: #1A1A26;
-  --accent-gold: #F5A623;
-  --accent-purple: #6C63FF;
-  --accent-green: #00D68F;
-  --accent-red: #FF4757;
-  --text-primary: #E8E8F0;
-  --text-secondary: #8888A8;
+/* ── Tailwind v4 Theme Configuration ─────────────── */
+@theme {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'Playfair Display', serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 /* ── Base Styles ─────────────────────────────────── */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+@layer base {
+  body {
+    @apply bg-[#0A0A0F] text-zinc-300 antialiased;
+  }
 }
 
-body {
-  background-color: var(--bg-primary);
-  color: var(--text-primary);
-  font-family: 'DM Sans', sans-serif;
-  min-height: 100vh;
+/* ── Custom Scrollbar for IDE Feel ───────────────── */
+::-webkit-scrollbar { 
+  width: 8px; 
+  height: 8px;
 }
-
-/* ── Scrollbar ───────────────────────────────────── */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-surface); }
-::-webkit-scrollbar-thumb { background: var(--accent-purple); border-radius: 3px; }
-
-/* ── Fonts ───────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+::-webkit-scrollbar-track { 
+  background: #0A0A0F; 
+}
+::-webkit-scrollbar-thumb { 
+  background: #27272a; /* zinc-800 */
+  border-radius: 4px; 
+}
+::-webkit-scrollbar-thumb:hover { 
+  background: #3f3f46; /* zinc-700 */
+}
