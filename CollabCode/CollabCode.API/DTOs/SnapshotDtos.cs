@@ -1,7 +1,10 @@
-﻿namespace CollabCode.API.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace CollabCode.API.DTOs;
 
 public class CreateSnapshotDto
 {
+    [MaxLength(200, ErrorMessage = "Snapshot message cannot exceed 200 characters")]
     public string Message { get; set; } = string.Empty;
 }
 

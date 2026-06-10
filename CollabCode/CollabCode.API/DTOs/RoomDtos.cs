@@ -1,16 +1,33 @@
-﻿namespace CollabCode.API.DTOs;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace CollabCode.API.DTOs;
 
 public class CreateRoomDto
 {
+    [Required(ErrorMessage = "Room name is required")]
+    [MinLength(1, ErrorMessage = "Room name cannot be empty")]
+    [MaxLength(100, ErrorMessage = "Room name cannot exceed 100 characters")]
     public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Language is required")]
+    [RegularExpression("^(javascript|typescript|python|java|csharp|cpp|go|rust)$",
+        ErrorMessage = "Invalid language selected")]
     public string Language { get; set; } = "javascript";
+
     public bool IsPublic { get; set; } = false;
 }
 
 public class UpdateRoomDto
 {
+    [Required(ErrorMessage = "Room name is required")]
+    [MaxLength(100, ErrorMessage = "Room name cannot exceed 100 characters")]
     public string Name { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "Language is required")]
+    [RegularExpression("^(javascript|typescript|python|java|csharp|cpp|go|rust)$",
+        ErrorMessage = "Invalid language selected")]
     public string Language { get; set; } = string.Empty;
+
     public bool IsPublic { get; set; }
 }
 
