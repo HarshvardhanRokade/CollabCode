@@ -131,3 +131,5 @@ D:\SelfLearning\C-Sharp\Projects\CollabCode\CollabCode\CollabCode.API\obj\Debug\
 D:\SelfLearning\C-Sharp\Projects\CollabCode\CollabCode\CollabCode.API\obj\Debug\net10.0\CollabCode.API.genruntimeconfig.cache
 D:\SelfLearning\C-Sharp\Projects\CollabCode\CollabCode\CollabCode.API\obj\Debug\net10.0\ref\CollabCode.API.dll
 D:\SelfLearning\C-Sharp\Projects\CollabCode\CollabCode\CollabCode.API\obj\Debug\net10.0\CollabCode.API.sourcelink.json
+D:\SelfLearning\C-Sharp\Projects\CollabCode\CollabCode\CollabCode.API\bin\Debug\net10.0\AspNetCoreRateLimit.dll
+D:\SelfLearning\C-Sharp\Projects\CollabCode\CollabCode\CollabCode.API\bin\Debug\net10.0\Newtonsoft.Json.dll

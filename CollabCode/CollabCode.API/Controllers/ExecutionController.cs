@@ -20,6 +20,8 @@ public class ExecutionController : ControllerBase
     [HttpPost("run")]
     public async Task<IActionResult> RunCode(ExecutionRequestDto dto)
     {
+        // Rate limiting handled by AspNetCoreRateLimit middleware
+        // Max 5 requests per minute per IP (configured in appsettings.json)
         if (string.IsNullOrWhiteSpace(dto.Code))
             return BadRequest(new { message = "Code cannot be empty." });
 
