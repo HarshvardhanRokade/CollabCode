@@ -13,6 +13,8 @@ public class AppDbContext : DbContext
     public DbSet<RoomParticipant> RoomParticipants => Set<RoomParticipant>();
     public DbSet<CodeSnapshot> CodeSnapshots => Set<CodeSnapshot>();
 
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // User → owns many Rooms
@@ -47,5 +49,11 @@ public class AppDbContext : DbContext
             .WithMany(u => u.Snapshots)
             .HasForeignKey(cs => cs.SavedBy)
             .OnDelete(DeleteBehavior.NoAction);
+
+        modelBuilder.Entity<RefreshToken>()
+            .HasOne(rt => rt.User)
+            .WithMany(u => u.RefreshTokens)
+            .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

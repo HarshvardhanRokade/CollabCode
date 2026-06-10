@@ -13,4 +13,6 @@ public class User
     public ICollection<Room> OwnedRooms { get; set; } = new List<Room>();
     public ICollection<RoomParticipant> Participations { get; set; } = new List<RoomParticipant>();
     public ICollection<CodeSnapshot> Snapshots { get; set; } = new List<CodeSnapshot>();
+
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }
