@@ -11,19 +11,25 @@ public class CodeCollabHub : Hub
 {
     private readonly AppDbContext _db;
     private readonly OTService _ot;
+    private readonly IServiceProvider _serviceProvider;
 
-    // tracks connectionId → (roomId, userName)
     private static readonly ConcurrentDictionary<string, (string RoomId, string UserName)>
         _connections = new();
 
-    // tracks roomId → list of recent operations for OT
     private static readonly ConcurrentDictionary<string, List<Operation>>
         _roomOperations = new();
 
-    public CodeCollabHub(AppDbContext db, OTService ot)
+    private static readonly ConcurrentDictionary<string, System.Timers.Timer>
+        _saveTimers = new();
+
+    private static readonly ConcurrentDictionary<string, string>
+        _pendingCode = new();
+
+    public CodeCollabHub(AppDbContext db, OTService ot, IServiceProvider serviceProvider)
     {
         _db = db;
         _ot = ot;
+        _serviceProvider = serviceProvider;
     }
 
     public async Task JoinRoom(string roomId)
@@ -90,7 +96,6 @@ public class CodeCollabHub : Hub
 
         lock (ops)
         {
-            // Transform against any concurrent operations
             var concurrent = ops.Where(o =>
                 o.Version >= operation.Version &&
                 o.UserId != operation.UserId).ToList();
@@ -101,20 +106,24 @@ public class CodeCollabHub : Hub
             transformed.Version = ops.Count;
             ops.Add(transformed);
 
-            // Keep only last 100 operations to save memory
             if (ops.Count > 100)
                 ops.RemoveAt(0);
         }
 
-        // Apply to the room's current code in DB (debounced — every operation)
+        // Apply operation to get new code
         var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == Guid.Parse(roomId));
         if (room != null)
         {
-            room.CurrentCode = _ot.Apply(room.CurrentCode, transformed);
-            await _db.SaveChangesAsync();
+            var newCode = _ot.Apply(room.CurrentCode, transformed);
+
+            // Store latest code for debounced save
+            _pendingCode[roomId] = newCode;
+
+            // Debounce — reset timer on every keystroke
+            ScheduleSave(roomId);
         }
 
-        // Broadcast transformed operation to others
+        // Broadcast to others immediately (don't wait for DB save)
         await Clients.OthersInGroup(roomId).SendAsync(
             "ReceiveOperation", transformed, Context.UserIdentifier);
     }
@@ -140,6 +149,22 @@ public class CodeCollabHub : Hub
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
         _connections.TryRemove(Context.ConnectionId, out _);
 
+        // Check if room is now empty
+        var usersStillInRoom = _connections
+            .Any(c => c.Value.RoomId == roomId);
+
+        // Clean up timer if room is empty
+        if (!usersStillInRoom)
+        {
+            if (_saveTimers.TryRemove(roomId, out var timer))
+            {
+                timer.Stop();
+                timer.Dispose();
+            }
+            _pendingCode.TryRemove(roomId, out _);
+            _roomOperations.TryRemove(roomId, out _);
+        }
+
         await Clients.OthersInGroup(roomId).SendAsync(
             "UserLeft", userName, Context.UserIdentifier);
 
@@ -155,5 +180,49 @@ public class CodeCollabHub : Hub
             .ToList();
 
         await Clients.Group(roomId).SendAsync("RoomUsersUpdated", usersInRoom);
+    }
+
+    private void ScheduleSave(string roomId)
+    {
+        // Cancel existing timer if any
+        if (_saveTimers.TryGetValue(roomId, out var existingTimer))
+        {
+            existingTimer.Stop();
+            existingTimer.Dispose();
+        }
+
+        // Create new 3 second timer
+        var timer = new System.Timers.Timer(3000);
+        timer.AutoReset = false; // only fire once
+
+        timer.Elapsed += async (sender, e) =>
+        {
+            try
+            {
+                if (_pendingCode.TryGetValue(roomId, out var code))
+                {
+                    // Create a new DB context scope for the timer callback
+                    using var scope = _serviceProvider.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    var room = await db.Rooms
+                        .FirstOrDefaultAsync(r => r.Id == Guid.Parse(roomId));
+
+                    if (room != null)
+                    {
+                        room.CurrentCode = code;
+                        await db.SaveChangesAsync();
+                        _pendingCode.TryRemove(roomId, out _);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Debounced save error: {ex.Message}");
+            }
+        };
+
+        timer.Start();
+        _saveTimers[roomId] = timer;
     }
 }
