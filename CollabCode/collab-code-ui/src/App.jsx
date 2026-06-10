@@ -6,6 +6,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
+import NotFound from './pages/NotFound'; 
 
 function App() {
   return (
@@ -26,6 +27,9 @@ function App() {
               </PrivateRoute>
             } />
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            
+            {/* Catch-all route for 404s */}
+            <Route path="*" element={<NotFound />} /> 
           </Routes>
         </AuthProvider>
       </BrowserRouter>

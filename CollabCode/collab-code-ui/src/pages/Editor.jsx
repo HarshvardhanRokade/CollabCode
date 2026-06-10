@@ -2,7 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
-import { ArrowLeft, Link as LinkIcon, History, Camera, Play, Loader2, WifiOff, RefreshCw } from 'lucide-react';
+import { 
+  ArrowLeft, Link as LinkIcon, History, Camera, 
+  Play, Loader2, WifiOff, RefreshCw, TerminalSquare 
+} from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../api/axiosInstance';
@@ -18,6 +21,9 @@ export default function Editor() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // --- State & Features ---
+  const [stdin, setStdin] = useState('');
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [room, setRoom] = useState(null);
   const [connection, setConnection] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
@@ -29,7 +35,6 @@ export default function Editor() {
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const editorRef = useRef(null);
 
-  // Load room and connect SignalR
   useEffect(() => {
     let cancelled = false;
 
@@ -112,13 +117,14 @@ export default function Editor() {
     }
 
     setIsExecuting(true);
+    setIsTerminalOpen(true); // Open immediately
     setOutput(null);
 
     try {
       const res = await axiosInstance.post('/execution/run', {
         code,
         language,
-        input: '',
+        input: stdin,
       });
       setOutput(res.data);
     } catch {
@@ -131,7 +137,6 @@ export default function Editor() {
   const handleLanguageChange = async (newLang) => {
     setLanguage(newLang);
     try {
-      // Broadcast to all users in room via SignalR
       if (connection && connection.state === 'Connected') {
         await connection.invoke('SendLanguageChange', roomId, newLang);
       }
@@ -161,7 +166,7 @@ export default function Editor() {
 
   if (isConnecting) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#1e1e1e] text-zinc-400 gap-4">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#1e1e1e] text-zinc-400 gap-4 font-sans">
         <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         <p className="text-sm tracking-wide">Connecting to workspace...</p>
       </div>
@@ -251,7 +256,19 @@ export default function Editor() {
             Snapshot
           </button>
 
-          {/* FIX: High-Contrast Solid Run Button */}
+          {/* NEW: I/O Terminal Toggle Button */}
+          <button
+            onClick={() => setIsTerminalOpen(prev => !prev)}
+            className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition-colors border ${
+              isTerminalOpen 
+                ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' 
+                : 'bg-transparent hover:bg-purple-500/10 text-purple-400 border-purple-500/50'
+            }`}
+          >
+            <TerminalSquare size={14} />
+            I/O
+          </button>
+
           <button
             onClick={handleRunCode}
             disabled={isExecuting}
@@ -276,7 +293,6 @@ export default function Editor() {
       </header>
 
       {/* ── Main Workspace ──────────────────────── */}
-      {/* FIX: min-h-0 prevents flex children from blowing out the height */}
       <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
 
         {/* Editor Pane */}
@@ -291,17 +307,20 @@ export default function Editor() {
 
         {/* Terminal Pane (Bottom Docked) */}
         <AnimatePresence>
-          {output && (
+          {isTerminalOpen && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
-              animate={{ height: '35vh', opacity: 1 }} // Fix: Hard boundary via viewport height
+              animate={{ height: '35vh', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ type: "spring", bounce: 0, duration: 0.3 }}
               className="shrink-0 w-full border-t border-zinc-800 bg-[#0A0A0F] z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]"
             >
               <Terminal
                 output={output}
-                onClose={() => setOutput(null)}
+                onClose={() => setIsTerminalOpen(false)}
+                stdin={stdin}
+                onStdinChange={setStdin}
+                isExecuting={isExecuting}
               />
             </motion.div>
           )}
