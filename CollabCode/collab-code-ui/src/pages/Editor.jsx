@@ -54,12 +54,12 @@ export default function Editor() {
           setConnectionStatus('reconnecting');
           toast('Reconnecting...', { icon: <RefreshCw className="w-4 h-4 text-amber-500 animate-spin" /> });
         });
-        
+
         conn.onreconnected(() => {
           setConnectionStatus('connected');
           toast.success('Reconnected!');
         });
-        
+
         conn.onclose(() => {
           setConnectionStatus('disconnected');
         });
@@ -74,6 +74,11 @@ export default function Editor() {
 
         conn.on('RoomUsersUpdated', (users) => {
           setActiveUsers(users);
+        });
+
+        conn.on('ReceiveLanguageChange', (lang) => {
+          setLanguage(lang);
+          toast(`Language changed to ${lang}`, { icon: '🔤' });
         });
 
         await conn.invoke('JoinRoom', roomId);
@@ -126,12 +131,13 @@ export default function Editor() {
   const handleLanguageChange = async (newLang) => {
     setLanguage(newLang);
     try {
-      await axiosInstance.put(`/rooms/${roomId}`, {
-        name: room.name,
-        language: newLang,
-        isPublic: room.isPublic,
-      });
-    } catch {}
+      // Broadcast to all users in room via SignalR
+      if (connection && connection.state === 'Connected') {
+        await connection.invoke('SendLanguageChange', roomId, newLang);
+      }
+    } catch {
+      toast.error('Failed to sync language change');
+    }
   };
 
   const handleSaveSnapshot = async () => {
@@ -164,15 +170,15 @@ export default function Editor() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#1e1e1e] text-zinc-300 overflow-hidden font-sans">
-      <Toaster 
+      <Toaster
         toastOptions={{
           style: { background: '#27272a', color: '#e4e4e7', border: '1px solid #3f3f46' }
-        }} 
+        }}
       />
 
       {/* ── Top Bar ─────────────────────────────── */}
       <header className="flex items-center justify-between h-[60px] px-4 bg-[#181818] border-b border-zinc-800 shrink-0">
-        
+
         {/* Left: Navigation & Info */}
         <div className="flex items-center gap-4 min-w-0">
           <button
@@ -182,7 +188,7 @@ export default function Editor() {
             <ArrowLeft size={16} />
             Back
           </button>
-          
+
           <div className="h-5 w-[1px] bg-zinc-700"></div>
 
           <span className="text-zinc-100 text-[15px] font-semibold truncate tracking-wide">
@@ -193,11 +199,10 @@ export default function Editor() {
             <motion.span
               animate={{ opacity: [1, 0.5, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${
-                connectionStatus === 'reconnecting' 
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' 
-                  : 'bg-red-500/10 text-red-400 border-red-500/20'
-              }`}
+              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${connectionStatus === 'reconnecting'
+                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                }`}
             >
               {connectionStatus === 'reconnecting' ? (
                 <><RefreshCw size={12} className="animate-spin" /> Reconnecting...</>
@@ -227,7 +232,7 @@ export default function Editor() {
         {/* Right: Actions */}
         <div className="flex items-center gap-3 shrink-0">
           <LanguageSelector value={language} onChange={handleLanguageChange} />
-          
+
           <div className="h-5 w-[1px] bg-zinc-700 mx-1"></div>
 
           <button
@@ -250,11 +255,10 @@ export default function Editor() {
           <button
             onClick={handleRunCode}
             disabled={isExecuting}
-            className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ${
-              isExecuting 
-                ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none' 
-                : 'bg-emerald-500 hover:bg-emerald-400 text-emerald-950 shadow-emerald-500/20'
-            }`}
+            className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ${isExecuting
+              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
+              : 'bg-emerald-500 hover:bg-emerald-400 text-emerald-950 shadow-emerald-500/20'
+              }`}
           >
             {isExecuting ? (
               <>
@@ -274,7 +278,7 @@ export default function Editor() {
       {/* ── Main Workspace ──────────────────────── */}
       {/* FIX: min-h-0 prevents flex children from blowing out the height */}
       <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
-        
+
         {/* Editor Pane */}
         <div className="flex-1 min-h-0 relative">
           <CodeEditor

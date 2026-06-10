@@ -225,4 +225,21 @@ public class CodeCollabHub : Hub
         timer.Start();
         _saveTimers[roomId] = timer;
     }
+
+    public async Task SendLanguageChange(string roomId, string language)
+    {
+        // Save to DB
+        var room = await _db.Rooms
+            .FirstOrDefaultAsync(r => r.Id == Guid.Parse(roomId));
+
+        if (room != null)
+        {
+            room.Language = language;
+            await _db.SaveChangesAsync();
+        }
+
+        // Broadcast to others
+        await Clients.OthersInGroup(roomId).SendAsync(
+            "ReceiveLanguageChange", language);
+    }
 }
