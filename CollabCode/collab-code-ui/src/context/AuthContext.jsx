@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axiosInstance from '../api/axiosInstance';
 
 const AuthContext = createContext();
@@ -6,80 +6,70 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const refreshTimerRef = useRef(null);
 
-  // ── Declare logout first so refreshToken can use it ──
   const logout = useCallback(async () => {
-    const storedRefreshToken = localStorage.getItem('refreshToken');
-    if (storedRefreshToken) {
-      try {
-        await axiosInstance.post('/auth/logout', {
-          refreshToken: storedRefreshToken
-        });
-      } catch {}
-    }
-
-    if (refreshTimerRef.current)
-      clearTimeout(refreshTimerRef.current);
-
+    try {
+      await axiosInstance.post('/auth/logout');
+    } catch {}
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setUser(null);
+    window.location.href = '/login';
   }, []);
 
-  // ── Declare scheduleRefresh before useEffect ──
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current)
-      clearTimeout(refreshTimerRef.current);
+  useEffect(() => {
+    const checkAuth = async () => {
+      const savedToken = localStorage.getItem('token');
+      const savedUser = localStorage.getItem('user');
 
-    refreshTimerRef.current = setTimeout(async () => {
-      const storedRefreshToken = localStorage.getItem('refreshToken');
-      if (!storedRefreshToken) {
-        logout();
+      if (!savedToken || !savedUser) {
+        setLoading(false);
         return;
       }
 
       try {
-        const response = await axiosInstance.post('/auth/refresh', {
-          refreshToken: storedRefreshToken
+        // Verify token is still valid
+        const res = await axiosInstance.get('/auth/me');
+        setUser({
+          userName: res.data.userName,
+          userId: res.data.userId
         });
+      } catch (err) {
+        if (err.response?.status === 401) {
+          // Try refresh
+          try {
+            const refreshToken = localStorage.getItem('refreshToken');
+            if (!refreshToken) throw new Error('No refresh token');
 
-        const { token, refreshToken: newRefreshToken, userName, userId } = response.data;
+            const res = await axiosInstance.post('/auth/refresh', {}, {
+              headers: { 'X-Refresh-Token': refreshToken }
+            });
 
-        localStorage.setItem('token', token);
-        localStorage.setItem('refreshToken', newRefreshToken);
-        localStorage.setItem('user', JSON.stringify({ userName, userId }));
-
-        setUser({ userName, userId });
-        scheduleRefresh();
-      } catch {
-        logout();
-      }
-    }, 14 * 60 * 1000);
-  }, [logout]);
-
-  // ── useEffect after all functions declared ──
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    const savedToken = localStorage.getItem('token');
-
-    if (savedUser && savedToken) {
-      // Use setTimeout to avoid setState during render
-      setTimeout(() => {
-        setUser(JSON.parse(savedUser));
-        scheduleRefresh();
+            localStorage.setItem('token', res.data.token);
+            localStorage.setItem('refreshToken', res.data.refreshToken);
+            localStorage.setItem('user', JSON.stringify({
+              userName: res.data.userName,
+              userId: res.data.userId
+            }));
+            setUser({
+              userName: res.data.userName,
+              userId: res.data.userId
+            });
+          } catch {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+            setUser(null);
+          }
+        }
+      } finally {
         setLoading(false);
-      }, 0);
-    } else {
-      setLoading(false);
-    }
-
-    return () => {
-      if (refreshTimerRef.current)
-        clearTimeout(refreshTimerRef.current);
+      }
     };
-  }, [scheduleRefresh]);
+
+    checkAuth();
+  }, []);
 
   const login = async (email, password) => {
     const response = await axiosInstance.post('/auth/login', { email, password });
@@ -89,7 +79,6 @@ export function AuthProvider({ children }) {
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify({ userName, userId }));
     setUser({ userName, userId });
-    scheduleRefresh();
     return response.data;
   };
 
@@ -103,7 +92,6 @@ export function AuthProvider({ children }) {
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify({ userName: name, userId }));
     setUser({ userName: name, userId });
-    scheduleRefresh();
     return response.data;
   };
 

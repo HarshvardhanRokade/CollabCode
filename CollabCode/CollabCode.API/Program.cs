@@ -75,13 +75,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         {
             OnMessageReceived = context =>
             {
+                // SignalR — read from query string
                 var accessToken = context.Request.Query["access_token"];
                 var path = context.HttpContext.Request.Path;
                 if (!string.IsNullOrEmpty(accessToken) &&
                     path.StartsWithSegments("/hubs"))
                 {
                     context.Token = accessToken;
+                    return Task.CompletedTask;
                 }
+
+                // REST API — read from httpOnly cookie
+                var cookieToken = context.Request.Cookies["accessToken"];
+                if (!string.IsNullOrEmpty(cookieToken))
+                {
+                    context.Token = cookieToken;
+                }
+
                 return Task.CompletedTask;
             }
         };
@@ -121,8 +131,8 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseIpRateLimiting();
 app.UseCors("AllowReact");
+app.UseIpRateLimiting();
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();

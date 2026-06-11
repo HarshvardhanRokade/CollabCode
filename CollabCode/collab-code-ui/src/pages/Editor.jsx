@@ -46,8 +46,7 @@ export default function Editor() {
         setRoom(res.data);
         setLanguage(res.data.language);
 
-        const token = localStorage.getItem('token');
-        const conn = await startConnection(token);
+        const conn = await startConnection();
         if (cancelled) {
           await stopConnection();
           return;
