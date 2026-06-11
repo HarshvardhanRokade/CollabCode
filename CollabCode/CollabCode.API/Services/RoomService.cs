@@ -15,16 +15,33 @@ public class RoomService
     }
 
     // Get all rooms the user owns or participates in
-    public async Task<List<RoomResponseDto>> GetMyRoomsAsync(Guid userId)
+    public async Task<PaginatedRoomsDto> GetMyRoomsAsync(Guid userId, int page, int pageSize)
     {
-        var rooms = await _db.Rooms
+        var query = _db.Rooms
             .Include(r => r.Owner)
             .Include(r => r.Participants)
             .Where(r => r.CreatedBy == userId ||
                         r.Participants.Any(p => p.UserId == userId))
+            .OrderByDescending(r => r.CreatedAt);
+
+        var totalCount = await query.CountAsync();
+        var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+
+        var rooms = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return rooms.Select(MapToDto).ToList();
+        return new PaginatedRoomsDto
+        {
+            Rooms = rooms.Select(MapToDto).ToList(),
+            TotalCount = totalCount,
+            TotalPages = totalPages,
+            CurrentPage = page,
+            PageSize = pageSize,
+            HasNextPage = page < totalPages,
+            HasPreviousPage = page > 1
+        };
     }
 
     // Get a single room by ID

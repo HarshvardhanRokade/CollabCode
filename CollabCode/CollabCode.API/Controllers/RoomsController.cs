@@ -23,10 +23,15 @@ public class RoomsController : ControllerBase
         Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 
     [HttpGet]
-    public async Task<IActionResult> GetMyRooms()
+    public async Task<IActionResult> GetMyRooms(
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 9)
     {
-        var rooms = await _roomService.GetMyRoomsAsync(GetUserId());
-        return Ok(rooms);
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 50) pageSize = 9;
+
+        var result = await _roomService.GetMyRoomsAsync(GetUserId(), page, pageSize);
+        return Ok(result);
     }
 
     [HttpGet("{id}")]

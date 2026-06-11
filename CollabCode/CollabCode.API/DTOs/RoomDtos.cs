@@ -50,3 +50,14 @@ public class ParticipantDto
     public string Role { get; set; } = string.Empty;
     public DateTime JoinedAt { get; set; }
 }
+
+public class PaginatedRoomsDto
+{
+    public List<RoomResponseDto> Rooms { get; set; } = new();
+    public int TotalCount { get; set; }
+    public int TotalPages { get; set; }
+    public int CurrentPage { get; set; }
+    public int PageSize { get; set; }
+    public bool HasNextPage { get; set; }
+    public bool HasPreviousPage { get; set; }
+}
