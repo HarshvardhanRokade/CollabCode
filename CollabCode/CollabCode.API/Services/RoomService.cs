@@ -15,14 +15,25 @@ public class RoomService
     }
 
     // Get all rooms the user owns or participates in
-    public async Task<PaginatedRoomsDto> GetMyRoomsAsync(Guid userId, int page, int pageSize)
+    public async Task<PaginatedRoomsDto> GetMyRoomsAsync(
+    Guid userId, int page, int pageSize,
+    string? search = null, string? language = null)
     {
         var query = _db.Rooms
             .Include(r => r.Owner)
             .Include(r => r.Participants)
             .Where(r => r.CreatedBy == userId ||
-                        r.Participants.Any(p => p.UserId == userId))
-            .OrderByDescending(r => r.CreatedAt);
+                        r.Participants.Any(p => p.UserId == userId));
+
+        // Apply search filter
+        if (!string.IsNullOrWhiteSpace(search))
+            query = query.Where(r => r.Name.Contains(search));
+
+        // Apply language filter
+        if (!string.IsNullOrWhiteSpace(language) && language != "all")
+            query = query.Where(r => r.Language == language);
+
+        query = query.OrderByDescending(r => r.CreatedAt);
 
         var totalCount = await query.CountAsync();
         var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);

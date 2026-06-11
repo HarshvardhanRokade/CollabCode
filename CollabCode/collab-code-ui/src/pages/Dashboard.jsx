@@ -2,7 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
-import { Plus, Trash2, Users, Globe, Lock, Code2, X, Loader2, FileCode2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { 
+  Plus, Trash2, Users, Globe, Lock, Code2, 
+  X, Loader2, FileCode2, ChevronLeft, ChevronRight, Search 
+} from 'lucide-react';
 import Navbar from '../components/Navbar';
 import axiosInstance from '../api/axiosInstance';
 
@@ -27,17 +30,39 @@ export default function Dashboard() {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [hasPreviousPage, setHasPreviousPage] = useState(false);
 
+  // ── Search & Filter State ──
+  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const [languageFilter, setLanguageFilter] = useState('all');
+
   const navigate = useNavigate();
 
-  // Fetch rooms whenever currentPage changes
+  // Debounce search input — wait 400ms after user stops typing
   useEffect(() => {
-    fetchRooms(currentPage);
-  }, [currentPage]);
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setCurrentPage(1); // reset to page 1 on search
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
-  const fetchRooms = async (page) => {
+  // Fetch rooms whenever page, search, or language changes
+  useEffect(() => {
+    fetchRooms();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, search, languageFilter]);
+
+  const fetchRooms = async () => {
     setLoading(true);
     try {
-      const res = await axiosInstance.get(`/rooms?page=${page}&pageSize=${PAGE_SIZE}`);
+      const params = new URLSearchParams({
+        page: currentPage,
+        pageSize: PAGE_SIZE,
+      });
+      if (search) params.append('search', search);
+      if (languageFilter !== 'all') params.append('language', languageFilter);
+
+      const res = await axiosInstance.get(`/rooms?${params}`);
       setRooms(res.data.rooms);
       setTotalPages(res.data.totalPages);
       setTotalCount(res.data.totalCount);
@@ -63,9 +88,11 @@ export default function Dashboard() {
       setNewRoom({ name: '', language: 'javascript', isPublic: true });
       toast.success('Workspace created!');
       
-      // Reset to page 1 to see the new room
+      // Reset filters and go to page 1 to see the new room
       setCurrentPage(1);
-      fetchRooms(1);
+      setSearch('');
+      setSearchInput('');
+      setLanguageFilter('all');
       
       navigate(`/editor/${res.data.id}`);
     } catch {
@@ -91,6 +118,11 @@ export default function Dashboard() {
     } catch {
       toast.error('Failed to delete workspace');
     }
+  };
+
+  const handleLanguageFilter = (lang) => {
+    setLanguageFilter(lang);
+    setCurrentPage(1);
   };
 
   const languages = [
@@ -124,7 +156,7 @@ export default function Dashboard() {
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-12 relative z-10 flex flex-col">
         
         {/* ── Header ──────────────────────────────── */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-12">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h2 className="font-serif text-4xl font-bold text-white tracking-wide" style={{ fontFamily: "'Playfair Display', serif" }}>
               My Workspaces
@@ -146,6 +178,98 @@ export default function Dashboard() {
           </motion.button>
         </div>
 
+        {/* ── Search + Filter Bar ─────────────────── */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8 items-start md:items-center justify-between">
+          
+          {/* Search Input */}
+          <div className="relative w-full md:max-w-[300px]">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 w-4 h-4 pointer-events-none" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="Search workspaces..."
+              className="w-full bg-[#12121A] border border-zinc-800 text-zinc-100 rounded-xl py-2.5 pl-10 pr-10 outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all text-sm placeholder:text-zinc-600 shadow-inner"
+            />
+            {searchInput && (
+              <button
+                onClick={() => { setSearchInput(''); setSearch(''); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                title="Clear Search"
+              >
+                <X size={16} />
+              </button>
+            )}
+          </div>
+
+          {/* Language Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => handleLanguageFilter('all')}
+              className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                languageFilter === 'all'
+                  ? 'bg-purple-600 text-white border border-transparent shadow-md shadow-purple-500/20'
+                  : 'bg-[#12121A] border border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+              }`}
+            >
+              All
+            </button>
+
+            {languages.map(lang => (
+              <button
+                key={lang}
+                onClick={() => handleLanguageFilter(lang)}
+                className={`px-4 py-1.5 rounded-full text-[11px] font-mono font-bold uppercase tracking-wider transition-all border ${
+                  languageFilter === lang
+                    ? languageTheme[lang] + ' shadow-md'
+                    : 'bg-[#12121A] border-zinc-800 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300'
+                }`}
+              >
+                {lang}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Active Filters Indicator ────────────── */}
+        <AnimatePresence>
+          {(search || languageFilter !== 'all') && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center gap-3 mb-6 text-xs text-zinc-500 flex-wrap overflow-hidden"
+            >
+              <span>Showing {totalCount} result{totalCount !== 1 ? 's' : ''} for:</span>
+              
+              {search && (
+                <span className="flex items-center gap-1.5 bg-zinc-800/50 border border-zinc-700/50 px-3 py-1 rounded-full text-zinc-300">
+                  <Search size={12} />
+                  "{search}"
+                </span>
+              )}
+              
+              {languageFilter !== 'all' && (
+                <span className={`px-2.5 py-1 rounded-full font-mono font-bold uppercase tracking-wider border ${languageTheme[languageFilter]}`}>
+                  {languageFilter}
+                </span>
+              )}
+              
+              <button
+                onClick={() => {
+                  setSearchInput('');
+                  setSearch('');
+                  setLanguageFilter('all');
+                  setCurrentPage(1);
+                }}
+                className="text-red-400 hover:text-red-300 ml-2 font-medium transition-colors hover:underline"
+              >
+                Clear all filters
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ── Rooms Grid ──────────────────────────── */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -166,11 +290,19 @@ export default function Dashboard() {
             className="flex flex-col items-center justify-center py-24 text-center bg-[#12121A]/50 border border-zinc-800/50 border-dashed rounded-3xl"
           >
             <div className="w-16 h-16 bg-zinc-800/30 rounded-2xl border border-zinc-800 flex items-center justify-center mb-6">
-              <Code2 className="w-8 h-8 text-zinc-600" />
+              {search || languageFilter !== 'all' ? (
+                <Search className="w-8 h-8 text-zinc-600" />
+              ) : (
+                <Code2 className="w-8 h-8 text-zinc-600" />
+              )}
             </div>
-            <p className="text-xl font-bold text-zinc-200 mb-2">No active workspaces</p>
+            <p className="text-xl font-bold text-zinc-200 mb-2">
+              {search || languageFilter !== 'all' ? 'No workspaces found' : 'No active workspaces'}
+            </p>
             <p className="text-sm text-zinc-500 max-w-sm">
-              Provision your first real-time environment to start collaborating with your team.
+              {search || languageFilter !== 'all' 
+                ? 'Try adjusting your search query or language filter to find what you are looking for.' 
+                : 'Provision your first real-time environment to start collaborating with your team.'}
             </p>
           </motion.div>
         ) : (

@@ -25,12 +25,15 @@ public class RoomsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetMyRooms(
     [FromQuery] int page = 1,
-    [FromQuery] int pageSize = 9)
+    [FromQuery] int pageSize = 9,
+    [FromQuery] string? search = null,
+    [FromQuery] string? language = null)
     {
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 50) pageSize = 9;
 
-        var result = await _roomService.GetMyRoomsAsync(GetUserId(), page, pageSize);
+        var result = await _roomService.GetMyRoomsAsync(
+            GetUserId(), page, pageSize, search, language);
         return Ok(result);
     }
 
