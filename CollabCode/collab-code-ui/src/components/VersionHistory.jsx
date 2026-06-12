@@ -18,6 +18,7 @@ export default function VersionHistory({ roomId, isOpen, onClose, onRestore }) {
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
   const [restoring, setRestoring] = useState(false);
+  const [restoringId, setRestoringId] = useState(null); // Track specific snapshot
 
   useEffect(() => {
     if (isOpen) fetchSnapshots();
@@ -40,17 +41,23 @@ export default function VersionHistory({ roomId, isOpen, onClose, onRestore }) {
       return;
 
     setRestoring(true);
+    setRestoringId(snapshot.id);
+    
     try {
       await axiosInstance.post(
         `/rooms/${roomId}/snapshots/${snapshot.id}/restore`
       );
-      toast.success('Snapshot restored!');
+      // Small delay so user sees the loading state securely
+      await new Promise(resolve => setTimeout(resolve, 400));
+      
+      toast.success('Snapshot restored! 🔄');
       onRestore(snapshot.code);
       onClose();
     } catch {
       toast.error('Failed to restore snapshot');
     } finally {
       setRestoring(false);
+      setRestoringId(null);
     }
   };
 
@@ -191,20 +198,22 @@ export default function VersionHistory({ roomId, isOpen, onClose, onRestore }) {
                                   </pre>
 
                                   <motion.button
-                                    whileHover={{ scale: 1.01 }}
-                                    whileTap={{ scale: 0.98 }}
+                                    whileHover={{ scale: restoring ? 1 : 1.01 }}
+                                    whileTap={{ scale: restoring ? 1 : 0.98 }}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleRestore(snap);
                                     }}
                                     disabled={restoring}
                                     className={`w-full mt-3 py-2.5 rounded-lg flex items-center justify-center gap-2 text-sm font-bold transition-all ${
-                                      restoring
-                                        ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                                        : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20'
+                                      restoringId === snap.id
+                                        ? 'bg-purple-600 text-white cursor-wait'
+                                        : restoring
+                                          ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed opacity-50'
+                                          : 'bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-500/20'
                                     }`}
                                   >
-                                    {restoring ? (
+                                    {restoringId === snap.id ? (
                                       <><Loader2 size={16} className="animate-spin" /> Restoring...</>
                                     ) : (
                                       <><RotateCcw size={16} /> Restore This Version</>

@@ -36,6 +36,7 @@ export default function Editor() {
   // --- State & Features ---
   const [stdin, setStdin] = useState('');
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false); // NEW: Track restore overlay
   const [room, setRoom] = useState(null);
   const [connection, setConnection] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
@@ -128,7 +129,7 @@ export default function Editor() {
     }
 
     setIsExecuting(true);
-    setIsTerminalOpen(true); // Open immediately
+    setIsTerminalOpen(true);
     setOutput(null);
 
     try {
@@ -169,10 +170,39 @@ export default function Editor() {
     }
   };
 
+  // NEW: Updated Restore Handler with SignalR sync and overlay trigger
   const handleRestore = (code) => {
+    setIsRestoring(true);
     if (editorRef.current) {
       editorRef.current.setValue(code);
+      
+      // Sync restored code to other users via SignalR
+      if (connection && connection.state === 'Connected') {
+        const op = {
+          type: 'insert',
+          position: 0,
+          text: code,
+          length: 0,
+          version: 999999, // Arbitrary high version force override
+          userId: 'restore'
+        };
+        
+        // First clear all existing code, then insert restored code for other users
+        connection.invoke('SendOperation', roomId, {
+          type: 'delete',
+          position: 0,
+          text: '',
+          length: 999999, 
+          version: 999998,
+          userId: 'restore'
+        }).then(() => {
+          connection.invoke('SendOperation', roomId, op).catch(console.error);
+        }).catch(console.error);
+      }
     }
+    
+    // Disable overlay after operation simulates completion
+    setTimeout(() => setIsRestoring(false), 600);
   };
 
   const handleExportCode = () => {
@@ -180,7 +210,6 @@ export default function Editor() {
     const code = editorRef.current.getValue();
     const extension = languageExtensions[language] || 'txt';
     
-    // Sanitize room name for filename
     const fileName = (room?.name || 'code')
       .replace(/[^a-z0-9]/gi, '_')
       .toLowerCase();
@@ -263,7 +292,6 @@ export default function Editor() {
               Share
             </button>
 
-            {/* NEW: Export Button */}
             <button
               onClick={handleExportCode}
               className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
@@ -347,6 +375,29 @@ export default function Editor() {
             connection={connection}
             onMount={(editor) => { editorRef.current = editor; }}
           />
+
+          {/* NEW: Restore Editor Overlay */}
+          <AnimatePresence>
+            {isRestoring && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-[#0a0a0f]/60 backdrop-blur-sm flex items-center justify-center z-50"
+              >
+                <motion.div
+                  initial={{ scale: 0.9 }}
+                  animate={{ scale: 1 }}
+                  className="bg-[#12121A] border border-purple-500/50 rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl shadow-purple-500/20"
+                >
+                  <RefreshCw size={24} className="text-purple-400 animate-spin" />
+                  <span className="text-zinc-100 font-bold tracking-wide">
+                    Restoring version...
+                  </span>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Terminal Pane (Bottom Docked) */}

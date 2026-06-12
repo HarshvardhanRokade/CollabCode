@@ -1,5 +1,4 @@
 import * as signalR from '@microsoft/signalr';
-import axiosInstance from './axiosInstance';
 
 let connection = null;
 let isConnecting = false;
@@ -19,9 +18,12 @@ export async function startConnection() {
     connection = null;
   }
 
-  // Get token from cookie via API endpoint
-  const res = await axiosInstance.get('/auth/token');
-  const token = res.data.token;
+  const token = localStorage.getItem('token');
+
+  if (!token) {
+    isConnecting = false;
+    throw new Error('No auth token found');
+  }
 
   connection = new signalR.HubConnectionBuilder()
     .withUrl(`https://localhost:7222/hubs/code?access_token=${token}`, {
