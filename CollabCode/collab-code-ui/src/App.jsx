@@ -6,7 +6,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Editor from './pages/Editor';
-import NotFound from './pages/NotFound'; 
+import NotFound from './pages/NotFound';
+import Trash from './pages/Trash';
 
 function App() {
   return (
@@ -16,9 +17,13 @@ function App() {
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            
             <Route path="/dashboard" element={
-              <PrivateRoute><Dashboard /></PrivateRoute>
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
             } />
+            
             <Route path="/editor/:roomId" element={
               <PrivateRoute>
                 <ErrorBoundary>
@@ -26,10 +31,19 @@ function App() {
                 </ErrorBoundary>
               </PrivateRoute>
             } />
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
             
-            {/* Catch-all route for 404s */}
-            <Route path="*" element={<NotFound />} /> 
+            {/* Moved Trash above the catch-all */}
+            <Route path="/trash" element={
+              <PrivateRoute>
+                <Trash />
+              </PrivateRoute>
+            } />
+            
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+            {/* Catch-all route MUST be at the very bottom */}
+            <Route path="*" element={<NotFound />} />
+            
           </Routes>
         </AuthProvider>
       </BrowserRouter>

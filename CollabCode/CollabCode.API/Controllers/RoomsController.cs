@@ -68,6 +68,29 @@ public class RoomsController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("trash")]
+    public async Task<IActionResult> GetTrash()
+    {
+        var rooms = await _roomService.GetDeletedRoomsAsync(GetUserId());
+        return Ok(rooms);
+    }
+
+    [HttpPost("{id}/restore")]
+    public async Task<IActionResult> RestoreRoom(Guid id)
+    {
+        var success = await _roomService.RestoreRoomAsync(id, GetUserId());
+        if (!success) return NotFound();
+        return Ok(new { message = "Room restored." });
+    }
+
+    [HttpDelete("{id}/permanent")]
+    public async Task<IActionResult> PermanentDelete(Guid id)
+    {
+        var success = await _roomService.PermanentlyDeleteRoomAsync(id, GetUserId());
+        if (!success) return NotFound();
+        return NoContent();
+    }
+
     [HttpPost("{id}/join")]
     public async Task<IActionResult> JoinRoom(Guid id)
     {

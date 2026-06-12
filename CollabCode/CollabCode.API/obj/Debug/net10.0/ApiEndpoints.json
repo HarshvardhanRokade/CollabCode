@@ -220,6 +220,38 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "CollabCode.API.Controllers.RoomsController",
+    "Method": "PermanentDelete",
+    "RelativePath": "api/Rooms/{id}/permanent",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.RoomsController",
+    "Method": "RestoreRoom",
+    "RelativePath": "api/Rooms/{id}/restore",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "CollabCode.API.Controllers.SnapshotsController",
     "Method": "GetSnapshots",
     "RelativePath": "api/rooms/{roomId}/snapshots",
@@ -296,6 +328,16 @@
         "IsRequired": true
       }
     ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.RoomsController",
+    "Method": "GetTrash",
+    "RelativePath": "api/Rooms/trash",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
     "ReturnTypes": []
   },
   {

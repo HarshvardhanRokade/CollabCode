@@ -16,20 +16,19 @@ public class RoomService
 
     // Get all rooms the user owns or participates in
     public async Task<PaginatedRoomsDto> GetMyRoomsAsync(
-    Guid userId, int page, int pageSize,
-    string? search = null, string? language = null)
+     Guid userId, int page, int pageSize,
+     string? search = null, string? language = null)
     {
         var query = _db.Rooms
             .Include(r => r.Owner)
             .Include(r => r.Participants)
-            .Where(r => r.CreatedBy == userId ||
-                        r.Participants.Any(p => p.UserId == userId));
+            .Where(r => !r.IsDeleted &&
+                (r.CreatedBy == userId ||
+                 r.Participants.Any(p => p.UserId == userId)));
 
-        // Apply search filter
         if (!string.IsNullOrWhiteSpace(search))
             query = query.Where(r => r.Name.Contains(search));
 
-        // Apply language filter
         if (!string.IsNullOrWhiteSpace(language) && language != "all")
             query = query.Where(r => r.Language == language);
 
@@ -126,12 +125,48 @@ public class RoomService
         return MapToDto(room);
     }
 
-    // Delete a room (only owner can do this)
+    // Soft delete — sets flag instead of removing
     public async Task<bool> DeleteRoomAsync(Guid roomId, Guid userId)
     {
         var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
-
         if (room == null || room.CreatedBy != userId) return false;
+
+        room.IsDeleted = true;
+        room.DeletedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    // Get soft-deleted rooms (trash)
+    public async Task<List<RoomResponseDto>> GetDeletedRoomsAsync(Guid userId)
+    {
+        var rooms = await _db.Rooms
+            .Include(r => r.Owner)
+            .Include(r => r.Participants)
+            .Where(r => r.IsDeleted && r.CreatedBy == userId)
+            .OrderByDescending(r => r.DeletedAt)
+            .ToListAsync();
+
+        return rooms.Select(MapToDto).ToList();
+    }
+
+    // Restore from trash
+    public async Task<bool> RestoreRoomAsync(Guid roomId, Guid userId)
+    {
+        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        if (room == null || room.CreatedBy != userId || !room.IsDeleted) return false;
+
+        room.IsDeleted = false;
+        room.DeletedAt = null;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    // Permanent delete from trash
+    public async Task<bool> PermanentlyDeleteRoomAsync(Guid roomId, Guid userId)
+    {
+        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        if (room == null || room.CreatedBy != userId || !room.IsDeleted) return false;
 
         _db.Rooms.Remove(room);
         await _db.SaveChangesAsync();

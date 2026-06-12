@@ -37,16 +37,14 @@ export default function Dashboard() {
 
   const navigate = useNavigate();
 
-  // Debounce search input — wait 400ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearch(searchInput);
-      setCurrentPage(1); // reset to page 1 on search
+      setCurrentPage(1); 
     }, 400);
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Fetch rooms whenever page, search, or language changes
   useEffect(() => {
     fetchRooms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,7 +86,6 @@ export default function Dashboard() {
       setNewRoom({ name: '', language: 'javascript', isPublic: true });
       toast.success('Workspace created!');
       
-      // Reset filters and go to page 1 to see the new room
       setCurrentPage(1);
       setSearch('');
       setSearchInput('');
@@ -104,14 +101,13 @@ export default function Dashboard() {
 
   const handleDeleteRoom = async (roomId, e) => {
     e.stopPropagation();
-    if (!window.confirm('Delete this workspace?')) return;
+    if (!window.confirm('Move this workspace to trash?')) return;
     try {
       await axiosInstance.delete(`/rooms/${roomId}`);
       setRooms(prev => prev.filter(r => r.id !== roomId));
       setTotalCount(prev => prev - 1);
-      toast.success('Workspace deleted');
+      toast.success('Moved to trash');
       
-      // If we deleted the last item on the current page, go back one page
       if (rooms.length === 1 && currentPage > 1) {
         setCurrentPage(prev => prev - 1);
       }
@@ -144,7 +140,6 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#0A0A0F] font-sans text-zinc-300 selection:bg-purple-500/30 flex flex-col relative overflow-hidden">
       
-      {/* Subtle dot grid background pattern */}
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMSIgY3k9IjEiIHI9IjEiIGZpbGw9InJnYmEoMjU1LCAyNTUsIDI1NSwgMC4wNCkiLz48L3N2Zz4=')] [mask-image:linear-gradient(to_bottom,white,transparent)] pointer-events-none" />
 
       <Toaster toastOptions={{ style: { background: '#18181b', color: '#e4e4e7', border: '1px solid #27272a' } }} />
@@ -167,21 +162,33 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-purple-500/20 border border-purple-500/50 shrink-0"
-          >
-            <Plus size={18} />
-            New Workspace
-          </motion.button>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* NEW: Trash Button */}
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/trash')}
+              className="flex items-center gap-2 bg-[#12121A] hover:bg-zinc-800 text-zinc-300 hover:text-white px-5 py-3 rounded-xl font-bold text-sm transition-colors border border-zinc-800 hover:border-zinc-700"
+            >
+              <Trash2 size={18} />
+              Trash
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white px-5 py-3 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-purple-500/20 border border-purple-500/50"
+            >
+              <Plus size={18} />
+              New Workspace
+            </motion.button>
+          </div>
         </div>
 
         {/* ── Search + Filter Bar ─────────────────── */}
         <div className="flex flex-col md:flex-row gap-4 mb-8 items-start md:items-center justify-between">
           
-          {/* Search Input */}
           <div className="relative w-full md:max-w-[300px]">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500 w-4 h-4 pointer-events-none" />
             <input
@@ -202,7 +209,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Language Filter Pills */}
           <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => handleLanguageFilter('all')}
@@ -345,7 +351,7 @@ export default function Dashboard() {
                   <button
                     onClick={(e) => handleDeleteRoom(room.id, e)}
                     className="absolute top-5 right-5 p-2 text-zinc-600 hover:text-red-400 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                    title="Delete Workspace"
+                    title="Move to Trash"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -357,8 +363,6 @@ export default function Dashboard() {
             {totalPages > 1 && (
               <div className="mt-auto pt-12 flex flex-col items-center gap-4">
                 <div className="flex items-center gap-3">
-                  
-                  {/* Previous Button */}
                   <button
                     onClick={() => hasPreviousPage && setCurrentPage(p => p - 1)}
                     disabled={!hasPreviousPage}
@@ -368,7 +372,6 @@ export default function Dashboard() {
                     <span className="hidden sm:inline">Previous</span>
                   </button>
 
-                  {/* Page Numbers */}
                   <div className="flex items-center gap-1.5">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                       <button
@@ -385,7 +388,6 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  {/* Next Button */}
                   <button
                     onClick={() => hasNextPage && setCurrentPage(p => p + 1)}
                     disabled={!hasNextPage}
