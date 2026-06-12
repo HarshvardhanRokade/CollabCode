@@ -40,7 +40,9 @@ export default function CodeEditor({
   const handleMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
-    if (onMount) onMount(editor);
+    
+    // FIX: Pass the monaco instance up to Editor.jsx
+    if (onMount) onMount(editor, monaco);
 
     // ── 1. Listen for Content Changes (OT Engine) ──
     editor.onDidChangeModelContent(() => {
@@ -159,7 +161,7 @@ export default function CodeEditor({
             z-index: 100;
           }
           
-          /* FIX: Floating name badge anchored completely above the text row */
+          /* Floating name badge anchored completely above the text row */
           .cursor-label-${safeUserId}::after {
             content: "${userName}";
             position: absolute;
@@ -247,6 +249,7 @@ export default function CodeEditor({
           padding: { top: 24, bottom: 24 },
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,
+          glyphMargin: true, // NEEDED FOR ERROR HIGHLIGHT ICONS
           scrollbar: {
             verticalScrollbarSize: 8,
             horizontalScrollbarSize: 8,

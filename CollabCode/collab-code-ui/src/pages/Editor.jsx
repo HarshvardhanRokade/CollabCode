@@ -29,6 +29,24 @@ const languageExtensions = {
   rust:       'rs',
 };
 
+// Extract line number from common error message formats
+const extractErrorLine = (errorText, lang) => {
+  if (!errorText) return null;
+  const patterns = {
+    python: /line (\d+)/i,
+    javascript: /:(\d+):\d+/,
+    typescript: /:(\d+):\d+/,
+    java: /\.java:(\d+)/,
+    csharp: /:line (\d+)/i,
+    cpp: /:(\d+):\d+:/,
+    go: /:(\d+):/,
+    rust: /:(\d+):\d+/,
+  };
+  const pattern = patterns[lang] || /line (\d+)/i;
+  const match = errorText.match(pattern);
+  return match ? parseInt(match[1], 10) : null;
+};
+
 export default function Editor() {
   const { roomId } = useParams();
   const { user } = useAuth();
@@ -53,7 +71,10 @@ export default function Editor() {
   const [isConnecting, setIsConnecting] = useState(true);
   const [showHistory, setShowHistory] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connected');
+  
   const editorRef = useRef(null);
+  const monacoInstanceRef = useRef(null);
+  const errorDecorationRef = useRef([]);
 
   // Sync chat ref for closure access
   useEffect(() => { 
@@ -151,13 +172,46 @@ export default function Editor() {
     setIsTerminalOpen(true);
     setOutput(null);
 
+    // Clear previous error decorations
+    if (editorRef.current && errorDecorationRef.current.length > 0) {
+      errorDecorationRef.current = editorRef.current.deltaDecorations(
+        errorDecorationRef.current, []
+      );
+    }
+
     try {
       const res = await axiosInstance.post('/execution/run', {
         code,
         language,
         input: stdin,
       });
+      
       setOutput(res.data);
+
+      // Highlight error line if present
+      const errorText = res.data.error;
+      if (errorText && errorText.trim().length > 0) {
+        const lineNum = extractErrorLine(errorText, language);
+        if (lineNum && editorRef.current && monacoInstanceRef.current) {
+          const monaco = monacoInstanceRef.current;
+          const editor = editorRef.current;
+          
+          errorDecorationRef.current = editor.deltaDecorations([], [
+            {
+              range: new monaco.Range(lineNum, 1, lineNum, 1),
+              options: {
+                isWholeLine: true,
+                className: 'error-line-highlight',
+                glyphMarginClassName: 'error-glyph',
+                glyphMarginHoverMessage: { value: 'Error on this line' },
+              }
+            }
+          ]);
+          
+          // Scroll to the error line
+          editor.revealLineInCenter(lineNum);
+        }
+      }
     } catch {
       toast.error('Execution failed');
     } finally {
@@ -344,7 +398,6 @@ export default function Editor() {
             Snapshot
           </button>
 
-          {/* NEW: Chat Toggle Button */}
           <button
             onClick={() => {
               setShowChat(prev => !prev);
@@ -411,7 +464,19 @@ export default function Editor() {
               roomId={roomId}
               language={language}
               connection={connection}
-              onMount={(editor) => { editorRef.current = editor; }}
+              onMount={(editor, monaco) => { 
+                editorRef.current = editor; 
+                monacoInstanceRef.current = monaco;
+                
+                // Clear error highlighting when code changes
+                editor.onDidChangeModelContent(() => {
+                  if (errorDecorationRef.current.length > 0) {
+                    errorDecorationRef.current = editor.deltaDecorations(
+                      errorDecorationRef.current, []
+                    );
+                  }
+                });
+              }}
             />
 
             <AnimatePresence>
