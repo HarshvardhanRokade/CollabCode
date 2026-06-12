@@ -41,8 +41,16 @@ export default function CodeEditor({
     editorRef.current = editor;
     monacoRef.current = monaco;
     
-    // FIX: Pass the monaco instance up to Editor.jsx
+    // Pass the monaco instance up to Editor.jsx
     if (onMount) onMount(editor, monaco);
+
+    // ── NEW: Add Keyboard Shortcut for Formatting (Ctrl+Shift+F) ──
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF,
+      () => {
+        editor.getAction('editor.action.formatDocument')?.run();
+      }
+    );
 
     // ── 1. Listen for Content Changes (OT Engine) ──
     editor.onDidChangeModelContent(() => {
@@ -249,7 +257,8 @@ export default function CodeEditor({
           padding: { top: 24, bottom: 24 },
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,
-          glyphMargin: true, // NEEDED FOR ERROR HIGHLIGHT ICONS
+          glyphMargin: true,
+          formatOnPaste: true, // NEW: Auto-format pasted code
           scrollbar: {
             verticalScrollbarSize: 8,
             horizontalScrollbarSize: 8,

@@ -4,8 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
   ArrowLeft, Link as LinkIcon, History, Camera, 
-  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download, MessageSquare 
+  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download, MessageSquare, Sparkles 
 } from 'lucide-react';
+
+// Prettier Imports
+import * as prettier from 'prettier/standalone';
+import parserBabel from 'prettier/plugins/babel';
+import parserEstree from 'prettier/plugins/estree';
+import parserTypescript from 'prettier/plugins/typescript';
 
 import { useAuth } from '../context/AuthContext';
 import axiosInstance from '../api/axiosInstance';
@@ -27,6 +33,12 @@ const languageExtensions = {
   cpp:        'cpp',
   go:         'go',
   rust:       'rs',
+};
+
+// Map languages to Prettier parsers
+const prettierParsers = {
+  javascript: { parser: 'babel', plugins: [parserBabel, parserEstree] },
+  typescript: { parser: 'typescript', plugins: [parserTypescript, parserEstree] },
 };
 
 // Extract line number from common error message formats
@@ -296,6 +308,46 @@ export default function Editor() {
     toast.success(`Downloaded ${fileName}.${extension}`);
   };
 
+  // ── Code Formatting (Prettier + Monaco Fallback) ──
+  const handleFormatCode = async () => {
+    if (!editorRef.current) return;
+    
+    const config = prettierParsers[language];
+    
+    // If we don't have a prettier config for this language, fallback to Monaco
+    if (!config) {
+      const action = editorRef.current.getAction('editor.action.formatDocument');
+      if (action) {
+        await action.run();
+        toast.success('Code formatted! ✨');
+      } else {
+        toast.error('Formatting not available for this language');
+      }
+      return;
+    }
+    
+    // Use Prettier for supported languages (JS/TS)
+    try {
+      const code = editorRef.current.getValue();
+      const formatted = await prettier.format(code, {
+        parser: config.parser,
+        plugins: config.plugins,
+        semi: true,
+        singleQuote: false,
+        tabWidth: 2,
+      });
+      
+      const position = editorRef.current.getPosition();
+      editorRef.current.setValue(formatted);
+      if (position) editorRef.current.setPosition(position);
+      
+      toast.success('Code formatted! ✨');
+    } catch (err) {
+      toast.error('Format failed — check for syntax errors');
+      console.error('Prettier formatting error:', err);
+    }
+  };
+
   if (isConnecting) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#1e1e1e] text-zinc-400 gap-4 font-sans">
@@ -367,6 +419,14 @@ export default function Editor() {
             >
               <Download size={14} />
               Export
+            </button>
+
+            <button
+              onClick={handleFormatCode}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
+            >
+              <Sparkles size={14} />
+              Format
             </button>
           </div>
         </div>
