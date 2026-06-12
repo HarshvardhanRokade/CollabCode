@@ -242,4 +242,16 @@ public class CodeCollabHub : Hub
         await Clients.OthersInGroup(roomId).SendAsync(
             "ReceiveLanguageChange", language);
     }
+
+    public async Task SendChatMessage(string roomId, string message)
+    {
+        var userName = Context.User?.Identity?.Name ?? "Anonymous";
+
+        await Clients.Group(roomId).SendAsync(
+            "ReceiveChatMessage",
+            userName,
+            message,
+            DateTime.UtcNow.ToString("HH:mm")
+        );
+    }
 }

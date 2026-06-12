@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
   ArrowLeft, Link as LinkIcon, History, Camera, 
-  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download 
+  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download, MessageSquare 
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,7 @@ import Terminal from '../components/Terminal';
 import CollaboratorsList from '../components/CollaboratorsList';
 import LanguageSelector from '../components/LanguageSelector';
 import VersionHistory from '../components/VersionHistory';
+import ChatSidebar from '../components/ChatSidebar';
 
 // Map languages to their standard file extensions
 const languageExtensions = {
@@ -36,7 +37,13 @@ export default function Editor() {
   // --- State & Features ---
   const [stdin, setStdin] = useState('');
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false); // NEW: Track restore overlay
+  const [isRestoring, setIsRestoring] = useState(false);
+  
+  // Chat State
+  const [showChat, setShowChat] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const showChatRef = useRef(false);
+  
   const [room, setRoom] = useState(null);
   const [connection, setConnection] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
@@ -47,6 +54,11 @@ export default function Editor() {
   const [showHistory, setShowHistory] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   const editorRef = useRef(null);
+
+  // Sync chat ref for closure access
+  useEffect(() => { 
+    showChatRef.current = showChat; 
+  }, [showChat]);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +110,13 @@ export default function Editor() {
           toast(`Language changed to ${lang}`, { icon: '🔤' });
         });
 
+        // Track unread messages if chat is closed
+        conn.on('ReceiveChatMessage', (userName) => {
+          if (!showChatRef.current && userName !== user?.userName) {
+            setUnreadCount(prev => prev + 1);
+          }
+        });
+
         await conn.invoke('JoinRoom', roomId);
         if (cancelled) return;
 
@@ -117,7 +136,7 @@ export default function Editor() {
       cancelled = true;
       stopConnection();
     };
-  }, [roomId, navigate]);
+  }, [roomId, navigate, user?.userName]);
 
   const handleRunCode = async () => {
     if (!editorRef.current) return;
@@ -170,24 +189,21 @@ export default function Editor() {
     }
   };
 
-  // NEW: Updated Restore Handler with SignalR sync and overlay trigger
   const handleRestore = (code) => {
     setIsRestoring(true);
     if (editorRef.current) {
       editorRef.current.setValue(code);
       
-      // Sync restored code to other users via SignalR
       if (connection && connection.state === 'Connected') {
         const op = {
           type: 'insert',
           position: 0,
           text: code,
           length: 0,
-          version: 999999, // Arbitrary high version force override
+          version: 999999,
           userId: 'restore'
         };
         
-        // First clear all existing code, then insert restored code for other users
         connection.invoke('SendOperation', roomId, {
           type: 'delete',
           position: 0,
@@ -201,7 +217,6 @@ export default function Editor() {
       }
     }
     
-    // Disable overlay after operation simulates completion
     setTimeout(() => setIsRestoring(false), 600);
   };
 
@@ -329,9 +344,30 @@ export default function Editor() {
             Snapshot
           </button>
 
+          {/* NEW: Chat Toggle Button */}
+          <button
+            onClick={() => {
+              setShowChat(prev => !prev);
+              setUnreadCount(0);
+            }}
+            className={`relative flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${
+              showChat 
+                ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' 
+                : 'bg-transparent hover:bg-purple-500/10 text-purple-400 border-purple-500/50'
+            }`}
+          >
+            <MessageSquare size={14} />
+            Chat
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#181818] shadow-sm">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => setIsTerminalOpen(prev => !prev)}
-            className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition-colors border ${
+            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${
               isTerminalOpen 
                 ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' 
                 : 'bg-transparent hover:bg-purple-500/10 text-purple-400 border-purple-500/50'
@@ -344,7 +380,7 @@ export default function Editor() {
           <button
             onClick={handleRunCode}
             disabled={isExecuting}
-            className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ${isExecuting
+            className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ml-1 ${isExecuting
               ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
               : 'bg-emerald-500 hover:bg-emerald-400 text-emerald-950 shadow-emerald-500/20'
               }`}
@@ -364,63 +400,73 @@ export default function Editor() {
         </div>
       </header>
 
-      {/* ── Main Workspace ──────────────────────── */}
-      <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
+      {/* ── Main Layout Wrapper ──────────────────────── */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        
+        {/* Workspace Column (Editor + Terminal) */}
+        <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
+          
+          <div className="flex-1 min-h-0 relative">
+            <CodeEditor
+              roomId={roomId}
+              language={language}
+              connection={connection}
+              onMount={(editor) => { editorRef.current = editor; }}
+            />
 
-        {/* Editor Pane */}
-        <div className="flex-1 min-h-0 relative">
-          <CodeEditor
-            roomId={roomId}
-            language={language}
-            connection={connection}
-            onMount={(editor) => { editorRef.current = editor; }}
-          />
-
-          {/* NEW: Restore Editor Overlay */}
-          <AnimatePresence>
-            {isRestoring && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 bg-[#0a0a0f]/60 backdrop-blur-sm flex items-center justify-center z-50"
-              >
+            <AnimatePresence>
+              {isRestoring && (
                 <motion.div
-                  initial={{ scale: 0.9 }}
-                  animate={{ scale: 1 }}
-                  className="bg-[#12121A] border border-purple-500/50 rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl shadow-purple-500/20"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-[#0a0a0f]/60 backdrop-blur-sm flex items-center justify-center z-50"
                 >
-                  <RefreshCw size={24} className="text-purple-400 animate-spin" />
-                  <span className="text-zinc-100 font-bold tracking-wide">
-                    Restoring version...
-                  </span>
+                  <motion.div
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                    className="bg-[#12121A] border border-purple-500/50 rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl shadow-purple-500/20"
+                  >
+                    <RefreshCw size={24} className="text-purple-400 animate-spin" />
+                    <span className="text-zinc-100 font-bold tracking-wide">
+                      Restoring version...
+                    </span>
+                  </motion.div>
                 </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <AnimatePresence>
+            {isTerminalOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: '35vh', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+                className="shrink-0 w-full border-t border-zinc-800 bg-[#0A0A0F] z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]"
+              >
+                <Terminal
+                  output={output}
+                  onClose={() => setIsTerminalOpen(false)}
+                  stdin={stdin}
+                  onStdinChange={setStdin}
+                  isExecuting={isExecuting}
+                />
               </motion.div>
             )}
           </AnimatePresence>
-        </div>
+        </main>
 
-        {/* Terminal Pane (Bottom Docked) */}
-        <AnimatePresence>
-          {isTerminalOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: '35vh', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-              className="shrink-0 w-full border-t border-zinc-800 bg-[#0A0A0F] z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]"
-            >
-              <Terminal
-                output={output}
-                onClose={() => setIsTerminalOpen(false)}
-                stdin={stdin}
-                onStdinChange={setStdin}
-                isExecuting={isExecuting}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </main>
+        {/* ── Chat Sidebar Pane ──────────────────────── */}
+        <ChatSidebar
+          connection={connection}
+          isOpen={showChat}
+          onClose={() => setShowChat(false)}
+          currentUser={user?.userName}
+          roomId={roomId}
+        />
+      </div>
 
       <VersionHistory
         roomId={roomId}
