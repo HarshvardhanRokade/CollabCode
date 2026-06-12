@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
   ArrowLeft, Link as LinkIcon, History, Camera, 
-  Play, Loader2, WifiOff, RefreshCw, TerminalSquare 
+  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download 
 } from 'lucide-react';
 
 import { useAuth } from '../context/AuthContext';
@@ -15,6 +15,18 @@ import Terminal from '../components/Terminal';
 import CollaboratorsList from '../components/CollaboratorsList';
 import LanguageSelector from '../components/LanguageSelector';
 import VersionHistory from '../components/VersionHistory';
+
+// Map languages to their standard file extensions
+const languageExtensions = {
+  javascript: 'js',
+  typescript: 'ts',
+  python:     'py',
+  java:       'java',
+  csharp:     'cs',
+  cpp:        'cpp',
+  go:         'go',
+  rust:       'rs',
+};
 
 export default function Editor() {
   const { roomId } = useParams();
@@ -163,6 +175,29 @@ export default function Editor() {
     }
   };
 
+  const handleExportCode = () => {
+    if (!editorRef.current) return;
+    const code = editorRef.current.getValue();
+    const extension = languageExtensions[language] || 'txt';
+    
+    // Sanitize room name for filename
+    const fileName = (room?.name || 'code')
+      .replace(/[^a-z0-9]/gi, '_')
+      .toLowerCase();
+      
+    const blob = new Blob([code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${fileName}.${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success(`Downloaded ${fileName}.${extension}`);
+  };
+
   if (isConnecting) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-[#1e1e1e] text-zinc-400 gap-4 font-sans">
@@ -216,16 +251,27 @@ export default function Editor() {
             </motion.span>
           )}
 
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(window.location.href);
-              toast.success('Room URL copied!');
-            }}
-            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
-          >
-            <LinkIcon size={14} />
-            Share
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                toast.success('Room URL copied!');
+              }}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
+            >
+              <LinkIcon size={14} />
+              Share
+            </button>
+
+            {/* NEW: Export Button */}
+            <button
+              onClick={handleExportCode}
+              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
+            >
+              <Download size={14} />
+              Export
+            </button>
+          </div>
         </div>
 
         {/* Center: Collaborators */}
@@ -255,7 +301,6 @@ export default function Editor() {
             Snapshot
           </button>
 
-          {/* NEW: I/O Terminal Toggle Button */}
           <button
             onClick={() => setIsTerminalOpen(prev => !prev)}
             className={`flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg transition-colors border ${
