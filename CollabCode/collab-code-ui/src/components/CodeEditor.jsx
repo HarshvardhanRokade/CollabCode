@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react';
 import MonacoEditor from '@monaco-editor/react';
+import { useTheme } from '../context/ThemeContext';
 import { diffToOps } from '../utils/otUtils';
 
 // Premium color palette for collaborator cursors
@@ -15,6 +16,8 @@ export default function CodeEditor({
   connection,
   onMount,
 }) {
+  const { theme } = useTheme(); // Pull current theme for dynamic switching
+  
   const prevContentRef = useRef('');
   const versionRef = useRef(0);
   const isApplyingRef = useRef(false);
@@ -44,7 +47,7 @@ export default function CodeEditor({
     // Pass the monaco instance up to Editor.jsx
     if (onMount) onMount(editor, monaco);
 
-    // ── NEW: Add Keyboard Shortcut for Formatting (Ctrl+Shift+F) ──
+    // ── Add Keyboard Shortcut for Formatting (Ctrl+Shift+F) ──
     editor.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF,
       () => {
@@ -176,7 +179,7 @@ export default function CodeEditor({
             bottom: 100%;
             left: 0;
             background: ${color};
-            color: #0A0A0F;
+            color: #FFFFFF;
             font-size: 10px;
             font-family: system-ui, -apple-system, sans-serif;
             font-weight: 700;
@@ -235,12 +238,12 @@ export default function CodeEditor({
   }[language] || 'javascript';
 
   return (
-    <div className="w-full h-full bg-[#1e1e1e]">
+    <div className="w-full h-full bg-theme-base transition-colors duration-300">
       <MonacoEditor
         height="100%"
         width="100%"
         language={monacoLanguage}
-        theme="vs-dark"
+        theme={theme === 'dark' ? 'vs-dark' : 'light'}
         options={{
           fontSize: 14,
           fontFamily: "'JetBrains Mono', monospace",
@@ -258,7 +261,7 @@ export default function CodeEditor({
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,
           glyphMargin: true,
-          formatOnPaste: true, // NEW: Auto-format pasted code
+          formatOnPaste: true, // Auto-format pasted code
           scrollbar: {
             verticalScrollbarSize: 8,
             horizontalScrollbarSize: 8,

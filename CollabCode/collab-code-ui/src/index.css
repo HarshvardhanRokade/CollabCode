@@ -7,12 +7,44 @@
   --font-sans: 'DM Sans', sans-serif;
   --font-serif: 'Playfair Display', serif;
   --font-mono: 'JetBrains Mono', monospace;
+
+  /* Map CSS Variables to Tailwind Utility Classes */
+  --color-theme-base: var(--bg-primary);
+  --color-theme-surface: var(--bg-surface);
+  --color-theme-elevated: var(--bg-elevated);
+  --color-theme-text: var(--text-primary);
+  --color-theme-muted: var(--text-secondary);
+  --color-theme-border: var(--border-color);
+}
+
+/* ── Base Variables (Dark Mode Default) ──────────── */
+:root {
+  --bg-primary: #0A0A0F;
+  --bg-surface: #12121A;
+  --bg-elevated: #18181b;
+  --text-primary: #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --border-color: #27272a;
+  --pattern-dots: url("data:image/svg+xml,%3Csvg width='24' height='24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='rgba(255,255,255,0.05)'/%3E%3C/svg%3E");
+}
+
+/* ── Light Mode Overrides ────────────────────────── */
+[data-theme="light"] {
+  --bg-primary: #f8fafc;        /* Soft cool gray background */
+  --bg-surface: #ffffff;        /* Pure white cards */
+  --bg-elevated: #f1f5f9;       /* Slightly darker hover states */
+  --text-primary: #0f172a;      /* Deep slate text */
+  --text-secondary: #64748b;    /* Muted slate text */
+  --border-color: #e2e8f0;      /* Soft borders */
+  --pattern-dots: url("data:image/svg+xml,%3Csvg width='24' height='24' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='1' cy='1' r='1' fill='rgba(0,0,0,0.05)'/%3E%3C/svg%3E");
 }
 
 /* ── Base Styles ─────────────────────────────────── */
 @layer base {
   body {
-    @apply bg-[#0A0A0F] text-zinc-300 antialiased;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    @apply antialiased transition-colors duration-300 ease-in-out;
   }
 }
 
@@ -22,23 +54,23 @@
   height: 8px;
 }
 ::-webkit-scrollbar-track { 
-  background: #0A0A0F; 
+  background: transparent; 
 }
 ::-webkit-scrollbar-thumb { 
-  background: #27272a; /* zinc-800 */
+  background: var(--border-color);
   border-radius: 4px; 
 }
 ::-webkit-scrollbar-thumb:hover { 
-  background: #3f3f46; /* zinc-700 */
+  background: var(--text-secondary);
 }
 
 /* ── Monaco Editor Error Highlighting ────────────── */
 .error-line-highlight {
   background: rgba(255, 71, 87, 0.15) !important;
-  border-left: 3px solid #f87171 !important; /* Tailwind red-400 */
+  border-left: 3px solid #f87171 !important;
 }
 .error-glyph {
-  background: #f87171; /* Tailwind red-400 */
+  background: #f87171;
   width: 4px !important;
   margin-left: 4px;
   border-radius: 2px;

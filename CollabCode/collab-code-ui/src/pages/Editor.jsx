@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
   ArrowLeft, Link as LinkIcon, History, Camera, 
-  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download, MessageSquare, Sparkles 
+  Play, Loader2, WifiOff, RefreshCw, TerminalSquare, Download, MessageSquare, Sparkles, Sun, Moon 
 } from 'lucide-react';
 
 // Prettier Imports
@@ -14,6 +14,7 @@ import parserEstree from 'prettier/plugins/estree';
 import parserTypescript from 'prettier/plugins/typescript';
 
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import axiosInstance from '../api/axiosInstance';
 import { startConnection, stopConnection } from '../api/signalrConnection';
 import CodeEditor from '../components/CodeEditor';
@@ -62,6 +63,7 @@ const extractErrorLine = (errorText, lang) => {
 export default function Editor() {
   const { roomId } = useParams();
   const { user } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   // --- State & Features ---
@@ -104,7 +106,10 @@ export default function Editor() {
         setRoom(res.data);
         setLanguage(res.data.language);
 
-        const conn = await startConnection();
+        // Fetch token and initiate SignalR
+        const token = localStorage.getItem('token');
+        const conn = await startConnection(token);
+        
         if (cancelled) {
           await stopConnection();
           return;
@@ -350,7 +355,7 @@ export default function Editor() {
 
   if (isConnecting) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#1e1e1e] text-zinc-400 gap-4 font-sans">
+      <div className="flex flex-col items-center justify-center min-h-screen bg-theme-base text-theme-muted gap-4 font-sans transition-colors duration-300">
         <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
         <p className="text-sm tracking-wide">Connecting to workspace...</p>
       </div>
@@ -358,29 +363,29 @@ export default function Editor() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#1e1e1e] text-zinc-300 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-full bg-theme-base text-theme-text overflow-hidden font-sans transition-colors duration-300">
       <Toaster
         toastOptions={{
-          style: { background: '#27272a', color: '#e4e4e7', border: '1px solid #3f3f46' }
+          style: { background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border-color)' }
         }}
       />
 
       {/* ── Top Bar ─────────────────────────────── */}
-      <header className="flex items-center justify-between h-[60px] px-4 bg-[#181818] border-b border-zinc-800 shrink-0">
+      <header className="flex items-center justify-between h-[60px] px-4 bg-theme-surface border-b border-theme-border shrink-0 transition-colors duration-300">
 
         {/* Left: Navigation & Info */}
         <div className="flex items-center gap-4 min-w-0">
           <button
             onClick={() => navigate('/dashboard')}
-            className="text-zinc-400 hover:text-zinc-100 transition-colors text-sm font-medium flex items-center gap-1.5"
+            className="text-theme-muted hover:text-theme-text transition-colors text-sm font-medium flex items-center gap-1.5"
           >
             <ArrowLeft size={16} />
             Back
           </button>
 
-          <div className="h-5 w-[1px] bg-zinc-700"></div>
+          <div className="h-5 w-[1px] bg-theme-border"></div>
 
-          <span className="text-zinc-100 text-[15px] font-semibold truncate tracking-wide">
+          <span className="text-theme-text text-[15px] font-semibold truncate tracking-wide">
             {room?.name}
           </span>
 
@@ -389,8 +394,8 @@ export default function Editor() {
               animate={{ opacity: [1, 0.5, 1] }}
               transition={{ duration: 1, repeat: Infinity }}
               className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${connectionStatus === 'reconnecting'
-                ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                : 'bg-red-500/10 text-red-400 border-red-500/20'
+                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                : 'bg-red-500/10 text-red-500 border-red-500/20'
                 }`}
             >
               {connectionStatus === 'reconnecting' ? (
@@ -407,7 +412,7 @@ export default function Editor() {
                 navigator.clipboard.writeText(window.location.href);
                 toast.success('Room URL copied!');
               }}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
+              className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors"
             >
               <LinkIcon size={14} />
               Share
@@ -415,7 +420,7 @@ export default function Editor() {
 
             <button
               onClick={handleExportCode}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
+              className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors"
             >
               <Download size={14} />
               Export
@@ -423,7 +428,7 @@ export default function Editor() {
 
             <button
               onClick={handleFormatCode}
-              className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-200 px-2.5 py-1.5 rounded bg-zinc-800/50 hover:bg-zinc-800 transition-colors border border-zinc-700/50"
+              className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors"
             >
               <Sparkles size={14} />
               Format
@@ -438,13 +443,23 @@ export default function Editor() {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-3 shrink-0">
+          
+          {/* Theme Toggle inside Editor */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center justify-center w-8 h-8 rounded-lg bg-theme-elevated border border-theme-border text-theme-muted hover:text-theme-text transition-colors"
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
+
           <LanguageSelector value={language} onChange={handleLanguageChange} />
 
-          <div className="h-5 w-[1px] bg-zinc-700 mx-1"></div>
+          <div className="h-5 w-[1px] bg-theme-border mx-1"></div>
 
           <button
             onClick={() => setShowHistory(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-zinc-300 hover:text-white px-3 py-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-700 border border-zinc-700 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-medium text-theme-text hover:opacity-80 px-3 py-2 rounded-lg bg-theme-elevated border border-theme-border transition-colors"
           >
             <History size={14} />
             History
@@ -452,7 +467,7 @@ export default function Editor() {
 
           <button
             onClick={handleSaveSnapshot}
-            className="flex items-center gap-1.5 text-xs font-medium text-blue-400 hover:text-blue-300 px-3 py-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 transition-colors"
+            className="flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:opacity-80 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-colors"
           >
             <Camera size={14} />
             Snapshot
@@ -465,14 +480,14 @@ export default function Editor() {
             }}
             className={`relative flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${
               showChat 
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' 
-                : 'bg-transparent hover:bg-purple-500/10 text-purple-400 border-purple-500/50'
+                ? 'bg-purple-500/10 text-purple-500 border-purple-500/30' 
+                : 'bg-transparent text-purple-500 border-purple-500/50'
             }`}
           >
             <MessageSquare size={14} />
             Chat
             {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-[#181818] shadow-sm">
+              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-theme-border shadow-sm">
                 {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
@@ -482,8 +497,8 @@ export default function Editor() {
             onClick={() => setIsTerminalOpen(prev => !prev)}
             className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${
               isTerminalOpen 
-                ? 'bg-purple-500/10 text-purple-400 border-purple-500/30' 
-                : 'bg-transparent hover:bg-purple-500/10 text-purple-400 border-purple-500/50'
+                ? 'bg-purple-500/10 text-purple-500 border-purple-500/30' 
+                : 'bg-transparent text-purple-500 border-purple-500/50'
             }`}
           >
             <TerminalSquare size={14} />
@@ -494,8 +509,8 @@ export default function Editor() {
             onClick={handleRunCode}
             disabled={isExecuting}
             className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ml-1 ${isExecuting
-              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed shadow-none'
-              : 'bg-emerald-500 hover:bg-emerald-400 text-emerald-950 shadow-emerald-500/20'
+              ? 'bg-theme-elevated text-theme-muted cursor-not-allowed shadow-none'
+              : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20'
               }`}
           >
             {isExecuting ? (
@@ -545,15 +560,15 @@ export default function Editor() {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="absolute inset-0 bg-[#0a0a0f]/60 backdrop-blur-sm flex items-center justify-center z-50"
+                  className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50"
                 >
                   <motion.div
                     initial={{ scale: 0.9 }}
                     animate={{ scale: 1 }}
-                    className="bg-[#12121A] border border-purple-500/50 rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl shadow-purple-500/20"
+                    className="bg-theme-surface border border-purple-500/50 rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl shadow-purple-500/20"
                   >
-                    <RefreshCw size={24} className="text-purple-400 animate-spin" />
-                    <span className="text-zinc-100 font-bold tracking-wide">
+                    <RefreshCw size={24} className="text-purple-500 animate-spin" />
+                    <span className="text-theme-text font-bold tracking-wide">
                       Restoring version...
                     </span>
                   </motion.div>
@@ -569,7 +584,7 @@ export default function Editor() {
                 animate={{ height: '35vh', opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
                 transition={{ type: "spring", bounce: 0, duration: 0.3 }}
-                className="shrink-0 w-full border-t border-zinc-800 bg-[#0A0A0F] z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.3)]"
+                className="shrink-0 w-full border-t border-theme-border bg-theme-base z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-colors duration-300"
               >
                 <Terminal
                   output={output}
