@@ -23,37 +23,24 @@ import CollaboratorsList from '../components/CollaboratorsList';
 import LanguageSelector from '../components/LanguageSelector';
 import VersionHistory from '../components/VersionHistory';
 import ChatSidebar from '../components/ChatSidebar';
+import FileTabs from '../components/FileTabs';
 
-// Map languages to their standard file extensions
 const languageExtensions = {
-  javascript: 'js',
-  typescript: 'ts',
-  python:     'py',
-  java:       'java',
-  csharp:     'cs',
-  cpp:        'cpp',
-  go:         'go',
-  rust:       'rs',
+  javascript: 'js', typescript: 'ts', python: 'py', java: 'java',
+  csharp: 'cs', cpp: 'cpp', go: 'go', rust: 'rs',
 };
 
-// Map languages to Prettier parsers
 const prettierParsers = {
   javascript: { parser: 'babel', plugins: [parserBabel, parserEstree] },
   typescript: { parser: 'typescript', plugins: [parserTypescript, parserEstree] },
 };
 
-// Extract line number from common error message formats
 const extractErrorLine = (errorText, lang) => {
   if (!errorText) return null;
   const patterns = {
-    python: /line (\d+)/i,
-    javascript: /:(\d+):\d+/,
-    typescript: /:(\d+):\d+/,
-    java: /\.java:(\d+)/,
-    csharp: /:line (\d+)/i,
-    cpp: /:(\d+):\d+:/,
-    go: /:(\d+):/,
-    rust: /:(\d+):\d+/,
+    python: /line (\d+)/i, javascript: /:(\d+):\d+/, typescript: /:(\d+):\d+/,
+    java: /\.java:(\d+)/, csharp: /:line (\d+)/i, cpp: /:(\d+):\d+:/,
+    go: /:(\d+):/, rust: /:(\d+):\d+/,
   };
   const pattern = patterns[lang] || /line (\d+)/i;
   const match = errorText.match(pattern);
@@ -66,31 +53,33 @@ export default function Editor() {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
-  // --- State & Features ---
-  const [stdin, setStdin] = useState('');
-  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-  
-  // Chat State
-  const [showChat, setShowChat] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const showChatRef = useRef(false);
-  
+  // --- Core State ---
   const [room, setRoom] = useState(null);
   const [connection, setConnection] = useState(null);
   const [activeUsers, setActiveUsers] = useState([]);
-  const [language, setLanguage] = useState('javascript');
-  const [output, setOutput] = useState(null);
-  const [isExecuting, setIsExecuting] = useState(false);
   const [isConnecting, setIsConnecting] = useState(true);
-  const [showHistory, setShowHistory] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connected');
   
+  // --- File System State ---
+  const [files, setFiles] = useState([]);
+  const [activeFileId, setActiveFileId] = useState(null);
+  const activeFile = files.find(f => f.id === activeFileId) || null;
+
+  // --- Tools State ---
+  const [stdin, setStdin] = useState('');
+  const [isTerminalOpen, setIsTerminalOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [output, setOutput] = useState(null);
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  
+  const showChatRef = useRef(false);
   const editorRef = useRef(null);
   const monacoInstanceRef = useRef(null);
   const errorDecorationRef = useRef([]);
 
-  // Sync chat ref for closure access
   useEffect(() => { 
     showChatRef.current = showChat; 
   }, [showChat]);
@@ -102,11 +91,14 @@ export default function Editor() {
       try {
         const res = await axiosInstance.get(`/rooms/${roomId}`);
         if (cancelled) return;
-
         setRoom(res.data);
-        setLanguage(res.data.language);
 
-        // Fetch token and initiate SignalR
+        const filesRes = await axiosInstance.get(`/rooms/${roomId}/files`);
+        if (cancelled) return;
+        setFiles(filesRes.data);
+        const entry = filesRes.data.find(f => f.isEntryPoint) || filesRes.data[0];
+        if (entry) setActiveFileId(entry.id);
+
         const token = localStorage.getItem('token');
         const conn = await startConnection(token);
         
@@ -127,32 +119,40 @@ export default function Editor() {
           toast.success('Reconnected!');
         });
 
-        conn.onclose(() => {
-          setConnectionStatus('disconnected');
-        });
-
-        conn.on('UserJoined', (userName) => {
-          toast.success(`${userName} joined`);
-        });
-
-        conn.on('UserLeft', (userName) => {
-          toast(`${userName} left`);
-        });
-
-        conn.on('RoomUsersUpdated', (users) => {
-          setActiveUsers(users);
-        });
-
-        conn.on('ReceiveLanguageChange', (lang) => {
-          setLanguage(lang);
-          toast(`Language changed to ${lang}`, { icon: '🔤' });
-        });
-
-        // Track unread messages if chat is closed
+        conn.onclose(() => setConnectionStatus('disconnected'));
+        conn.on('UserJoined', (userName) => toast.success(`${userName} joined`));
+        conn.on('UserLeft', (userName) => toast(`${userName} left`));
+        conn.on('RoomUsersUpdated', (users) => setActiveUsers(users));
+        
         conn.on('ReceiveChatMessage', (userName) => {
           if (!showChatRef.current && userName !== user?.userName) {
             setUnreadCount(prev => prev + 1);
           }
+        });
+
+        // --- Multi-File SignalR Handlers ---
+        conn.on('InitialFiles', (filesData) => {
+          setFiles(filesData);
+          const e = filesData.find(f => f.isEntryPoint) || filesData[0];
+          if (e && !activeFileId) setActiveFileId(e.id);
+        });
+
+        conn.on('FileCreated', (file) => {
+          setFiles(prev => [...prev, file]);
+        });
+
+        conn.on('FileDeleted', (fileId) => {
+          setFiles(prev => prev.filter(f => f.id !== fileId));
+          if (activeFileId === fileId) {
+            setFiles(prev => {
+              if (prev.length > 0) setActiveFileId(prev[0].id);
+              return prev;
+            });
+          }
+        });
+
+        conn.on('FileRenamed', (fileId, newName) => {
+          setFiles(prev => prev.map(f => f.id === fileId ? { ...f, name: newName } : f));
         });
 
         await conn.invoke('JoinRoom', roomId);
@@ -163,7 +163,7 @@ export default function Editor() {
       } catch (err) {
         if (cancelled) return;
         console.error('Editor init error:', err);
-        toast.error('Failed to connect to room');
+        toast.error('Failed to connect to workspace');
         navigate('/dashboard');
       }
     };
@@ -176,9 +176,88 @@ export default function Editor() {
     };
   }, [roomId, navigate, user?.userName]);
 
+  // ── File Management Actions ──
+
+  // FIX: Intercept tab switch to save Monaco state before wiping it!
+  const handleSwitchFile = (newFileId) => {
+    if (editorRef.current && activeFileId) {
+      const currentContent = editorRef.current.getValue();
+      setFiles(prev => prev.map(f =>
+        f.id === activeFileId ? { ...f, content: currentContent } : f
+      ));
+    }
+    setActiveFileId(newFileId);
+  };
+
+  // FIX: Apply OT operations for background files directly to React state
+  const handleFileContentUpdate = (fileId, op) => {
+    setFiles(prev => prev.map(f => {
+      if (f.id !== fileId) return f;
+      
+      let newContent = f.content || '';
+      if (op.type === 'insert') {
+        const pos = Math.min(op.position, newContent.length);
+        newContent = newContent.slice(0, pos) + op.text + newContent.slice(pos);
+      } else if (op.type === 'delete') {
+        const pos = Math.min(op.position, newContent.length);
+        const len = Math.min(op.length, newContent.length - pos);
+        newContent = newContent.slice(0, pos) + newContent.slice(pos + len);
+      }
+      return { ...f, content: newContent };
+    }));
+  };
+
+  const handleCreateFile = async (name, lang) => {
+    try {
+      const res = await axiosInstance.post(`/rooms/${roomId}/files`, { name, language: lang });
+      setFiles(prev => [...prev, res.data]);
+      handleSwitchFile(res.data.id); // Safely switch
+      connection?.invoke('SendFileCreated', roomId, res.data);
+      toast.success(`Created ${name}`);
+    } catch {
+      toast.error('Failed to create file');
+    }
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    if (files.length <= 1) {
+      toast.error("Can't delete the only file in the workspace");
+      return;
+    }
+    if (!window.confirm('Delete this file permanently?')) return;
+    try {
+      await axiosInstance.delete(`/rooms/${roomId}/files/${fileId}`);
+      setFiles(prev => {
+        const updated = prev.filter(f => f.id !== fileId);
+        if (activeFileId === fileId && updated.length > 0) setActiveFileId(updated[0].id);
+        return updated;
+      });
+      connection?.invoke('SendFileDeleted', roomId, fileId);
+      toast.success('File deleted');
+    } catch {
+      toast.error('Failed to delete file');
+    }
+  };
+
+  const handleRenameFile = async (fileId, newName) => {
+    try {
+      await axiosInstance.put(`/rooms/${roomId}/files/${fileId}/rename`, { name: newName });
+      setFiles(prev => prev.map(f => f.id === fileId ? { ...f, name: newName } : f));
+      connection?.invoke('SendFileRenamed', roomId, fileId, newName);
+    } catch {
+      toast.error('Failed to rename file');
+    }
+  };
+
+  // ── Execution & Editor Actions ──
   const handleRunCode = async () => {
-    if (!editorRef.current) return;
-    const code = editorRef.current.getValue();
+    const entryFile = files.find(f => f.isEntryPoint) || activeFile;
+    if (!entryFile) return;
+
+    // Grab current editor value if trying to run the active tab
+    const code = entryFile.id === activeFileId
+      ? editorRef.current?.getValue() || entryFile.content
+      : entryFile.content;
 
     if (!code.trim()) {
       toast.error('Write some code first!');
@@ -189,7 +268,6 @@ export default function Editor() {
     setIsTerminalOpen(true);
     setOutput(null);
 
-    // Clear previous error decorations
     if (editorRef.current && errorDecorationRef.current.length > 0) {
       errorDecorationRef.current = editorRef.current.deltaDecorations(
         errorDecorationRef.current, []
@@ -199,17 +277,16 @@ export default function Editor() {
     try {
       const res = await axiosInstance.post('/execution/run', {
         code,
-        language,
+        language: entryFile.language,
         input: stdin,
       });
       
       setOutput(res.data);
 
-      // Highlight error line if present
       const errorText = res.data.error;
       if (errorText && errorText.trim().length > 0) {
-        const lineNum = extractErrorLine(errorText, language);
-        if (lineNum && editorRef.current && monacoInstanceRef.current) {
+        const lineNum = extractErrorLine(errorText, entryFile.language);
+        if (lineNum && editorRef.current && monacoInstanceRef.current && entryFile.id === activeFileId) {
           const monaco = monacoInstanceRef.current;
           const editor = editorRef.current;
           
@@ -225,7 +302,6 @@ export default function Editor() {
             }
           ]);
           
-          // Scroll to the error line
           editor.revealLineInCenter(lineNum);
         }
       }
@@ -237,7 +313,11 @@ export default function Editor() {
   };
 
   const handleLanguageChange = async (newLang) => {
-    setLanguage(newLang);
+    if (!activeFile) return;
+    
+    // Optimistically update file state
+    setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, language: newLang } : f));
+    
     try {
       if (connection && connection.state === 'Connected') {
         await connection.invoke('SendLanguageChange', roomId, newLang);
@@ -262,7 +342,7 @@ export default function Editor() {
 
   const handleRestore = (code) => {
     setIsRestoring(true);
-    if (editorRef.current) {
+    if (editorRef.current && activeFileId) {
       editorRef.current.setValue(code);
       
       if (connection && connection.state === 'Connected') {
@@ -275,7 +355,7 @@ export default function Editor() {
           userId: 'restore'
         };
         
-        connection.invoke('SendOperation', roomId, {
+        connection.invoke('SendOperation', roomId, activeFileId, {
           type: 'delete',
           position: 0,
           text: '',
@@ -283,7 +363,7 @@ export default function Editor() {
           version: 999998,
           userId: 'restore'
         }).then(() => {
-          connection.invoke('SendOperation', roomId, op).catch(console.error);
+          connection.invoke('SendOperation', roomId, activeFileId, op).catch(console.error);
         }).catch(console.error);
       }
     }
@@ -292,34 +372,32 @@ export default function Editor() {
   };
 
   const handleExportCode = () => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || !activeFile) return;
     const code = editorRef.current.getValue();
-    const extension = languageExtensions[language] || 'txt';
+    const extension = languageExtensions[activeFile.language] || 'txt';
     
-    const fileName = (room?.name || 'code')
-      .replace(/[^a-z0-9]/gi, '_')
+    const fileName = (activeFile.name || 'code')
+      .replace(/[^a-z0-9.]/gi, '_')
       .toLowerCase();
       
     const blob = new Blob([code], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${fileName}.${extension}`;
+    link.download = fileName.includes('.') ? fileName : `${fileName}.${extension}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    toast.success(`Downloaded ${fileName}.${extension}`);
+    toast.success(`Downloaded ${fileName}`);
   };
 
-  // ── Code Formatting (Prettier + Monaco Fallback) ──
   const handleFormatCode = async () => {
-    if (!editorRef.current) return;
+    if (!editorRef.current || !activeFile) return;
     
-    const config = prettierParsers[language];
+    const config = prettierParsers[activeFile.language];
     
-    // If we don't have a prettier config for this language, fallback to Monaco
     if (!config) {
       const action = editorRef.current.getAction('editor.action.formatDocument');
       if (action) {
@@ -331,7 +409,6 @@ export default function Editor() {
       return;
     }
     
-    // Use Prettier for supported languages (JS/TS)
     try {
       const code = editorRef.current.getValue();
       const formatted = await prettier.format(code, {
@@ -373,157 +450,60 @@ export default function Editor() {
       {/* ── Top Bar ─────────────────────────────── */}
       <header className="flex items-center justify-between h-[60px] px-4 bg-theme-surface border-b border-theme-border shrink-0 transition-colors duration-300">
 
-        {/* Left: Navigation & Info */}
         <div className="flex items-center gap-4 min-w-0">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-theme-muted hover:text-theme-text transition-colors text-sm font-medium flex items-center gap-1.5"
-          >
-            <ArrowLeft size={16} />
-            Back
+          <button onClick={() => navigate('/dashboard')} className="text-theme-muted hover:text-theme-text transition-colors text-sm font-medium flex items-center gap-1.5">
+            <ArrowLeft size={16} /> Back
           </button>
-
           <div className="h-5 w-[1px] bg-theme-border"></div>
-
           <span className="text-theme-text text-[15px] font-semibold truncate tracking-wide">
             {room?.name}
           </span>
-
           {connectionStatus !== 'connected' && (
-            <motion.span
-              animate={{ opacity: [1, 0.5, 1] }}
-              transition={{ duration: 1, repeat: Infinity }}
-              className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${connectionStatus === 'reconnecting'
-                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                : 'bg-red-500/10 text-red-500 border-red-500/20'
-                }`}
-            >
-              {connectionStatus === 'reconnecting' ? (
-                <><RefreshCw size={12} className="animate-spin" /> Reconnecting...</>
-              ) : (
-                <><WifiOff size={12} /> Disconnected</>
-              )}
+            <motion.span animate={{ opacity: [1, 0.5, 1] }} transition={{ duration: 1, repeat: Infinity }} className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border ${connectionStatus === 'reconnecting' ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>
+              {connectionStatus === 'reconnecting' ? <><RefreshCw size={12} className="animate-spin" /> Reconnecting...</> : <><WifiOff size={12} /> Disconnected</>}
             </motion.span>
           )}
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(window.location.href);
-                toast.success('Room URL copied!');
-              }}
-              className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors"
-            >
-              <LinkIcon size={14} />
-              Share
+            <button onClick={() => { navigator.clipboard.writeText(window.location.href); toast.success('Room URL copied!'); }} className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors">
+              <LinkIcon size={14} /> Share
             </button>
-
-            <button
-              onClick={handleExportCode}
-              className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors"
-            >
-              <Download size={14} />
-              Export
+            <button onClick={handleExportCode} className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors">
+              <Download size={14} /> Export
             </button>
-
-            <button
-              onClick={handleFormatCode}
-              className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors"
-            >
-              <Sparkles size={14} />
-              Format
+            <button onClick={handleFormatCode} className="flex items-center gap-1.5 text-xs text-theme-muted hover:text-theme-text px-2.5 py-1.5 rounded bg-theme-elevated border border-theme-border transition-colors">
+              <Sparkles size={14} /> Format
             </button>
           </div>
         </div>
 
-        {/* Center: Collaborators */}
         <div className="hidden md:flex flex-1 justify-center">
           <CollaboratorsList users={activeUsers} />
         </div>
 
-        {/* Right: Actions */}
         <div className="flex items-center gap-3 shrink-0">
-          
-          {/* Theme Toggle inside Editor */}
-          <button
-            onClick={toggleTheme}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-theme-elevated border border-theme-border text-theme-muted hover:text-theme-text transition-colors"
-            title="Toggle Theme"
-          >
+          <button onClick={toggleTheme} className="flex items-center justify-center w-8 h-8 rounded-lg bg-theme-elevated border border-theme-border text-theme-muted hover:text-theme-text transition-colors" title="Toggle Theme">
             {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           </button>
-
-          <LanguageSelector value={language} onChange={handleLanguageChange} />
+          
+          <LanguageSelector value={activeFile?.language || 'javascript'} onChange={handleLanguageChange} />
 
           <div className="h-5 w-[1px] bg-theme-border mx-1"></div>
-
-          <button
-            onClick={() => setShowHistory(true)}
-            className="flex items-center gap-1.5 text-xs font-medium text-theme-text hover:opacity-80 px-3 py-2 rounded-lg bg-theme-elevated border border-theme-border transition-colors"
-          >
-            <History size={14} />
-            History
+          <button onClick={() => setShowHistory(true)} className="flex items-center gap-1.5 text-xs font-medium text-theme-text hover:opacity-80 px-3 py-2 rounded-lg bg-theme-elevated border border-theme-border transition-colors">
+            <History size={14} /> History
           </button>
-
-          <button
-            onClick={handleSaveSnapshot}
-            className="flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:opacity-80 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-colors"
-          >
-            <Camera size={14} />
-            Snapshot
+          <button onClick={handleSaveSnapshot} className="flex items-center gap-1.5 text-xs font-medium text-blue-500 hover:opacity-80 px-3 py-2 rounded-lg bg-blue-500/10 border border-blue-500/20 transition-colors">
+            <Camera size={14} /> Snapshot
           </button>
-
-          <button
-            onClick={() => {
-              setShowChat(prev => !prev);
-              setUnreadCount(0);
-            }}
-            className={`relative flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${
-              showChat 
-                ? 'bg-purple-500/10 text-purple-500 border-purple-500/30' 
-                : 'bg-transparent text-purple-500 border-purple-500/50'
-            }`}
-          >
-            <MessageSquare size={14} />
-            Chat
-            {unreadCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-theme-border shadow-sm">
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
+          <button onClick={() => { setShowChat(prev => !prev); setUnreadCount(0); }} className={`relative flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${showChat ? 'bg-purple-500/10 text-purple-500 border-purple-500/30' : 'bg-transparent text-purple-500 border-purple-500/50'}`}>
+            <MessageSquare size={14} /> Chat
+            {unreadCount > 0 && <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-theme-border shadow-sm">{unreadCount > 99 ? '99+' : unreadCount}</span>}
           </button>
-
-          <button
-            onClick={() => setIsTerminalOpen(prev => !prev)}
-            className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${
-              isTerminalOpen 
-                ? 'bg-purple-500/10 text-purple-500 border-purple-500/30' 
-                : 'bg-transparent text-purple-500 border-purple-500/50'
-            }`}
-          >
-            <TerminalSquare size={14} />
-            I/O
+          <button onClick={() => setIsTerminalOpen(prev => !prev)} className={`flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg transition-colors border ${isTerminalOpen ? 'bg-purple-500/10 text-purple-500 border-purple-500/30' : 'bg-transparent text-purple-500 border-purple-500/50'}`}>
+            <TerminalSquare size={14} /> I/O
           </button>
-
-          <button
-            onClick={handleRunCode}
-            disabled={isExecuting}
-            className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ml-1 ${isExecuting
-              ? 'bg-theme-elevated text-theme-muted cursor-not-allowed shadow-none'
-              : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20'
-              }`}
-          >
-            {isExecuting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Play size={16} fill="currentColor" />
-                Run
-              </>
-            )}
+          <button onClick={handleRunCode} disabled={isExecuting} className={`flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg transition-all shadow-md ml-1 ${isExecuting ? 'bg-theme-elevated text-theme-muted cursor-not-allowed shadow-none' : 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-emerald-500/20'}`}>
+            {isExecuting ? <><Loader2 size={16} className="animate-spin" /> Running...</> : <><Play size={16} fill="currentColor" /> Run</>}
           </button>
         </div>
       </header>
@@ -534,25 +514,37 @@ export default function Editor() {
         {/* Workspace Column (Editor + Terminal) */}
         <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
           
+          <FileTabs
+            files={files}
+            activeFileId={activeFileId}
+            onSwitchFile={handleSwitchFile} // FIX: Updated to use interceptor function
+            onCreateFile={handleCreateFile}
+            onDeleteFile={handleDeleteFile}
+            onRenameFile={handleRenameFile}
+          />
+
           <div className="flex-1 min-h-0 relative">
-            <CodeEditor
-              roomId={roomId}
-              language={language}
-              connection={connection}
-              onMount={(editor, monaco) => { 
-                editorRef.current = editor; 
-                monacoInstanceRef.current = monaco;
-                
-                // Clear error highlighting when code changes
-                editor.onDidChangeModelContent(() => {
-                  if (errorDecorationRef.current.length > 0) {
-                    errorDecorationRef.current = editor.deltaDecorations(
-                      errorDecorationRef.current, []
-                    );
-                  }
-                });
-              }}
-            />
+            {activeFile ? (
+              <CodeEditor
+                roomId={roomId}
+                activeFile={activeFile}
+                connection={connection}
+                onFileContentUpdate={handleFileContentUpdate} // FIX: Prop wired up to catch background file updates
+                onMount={(editor, monaco) => { 
+                  editorRef.current = editor; 
+                  monacoInstanceRef.current = monaco;
+                  editor.onDidChangeModelContent(() => {
+                    if (errorDecorationRef.current.length > 0) {
+                      errorDecorationRef.current = editor.deltaDecorations(errorDecorationRef.current, []);
+                    }
+                  });
+                }}
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-theme-muted text-sm bg-theme-base transition-colors duration-300">
+                Create or open a file to start coding.
+              </div>
+            )}
 
             <AnimatePresence>
               {isRestoring && (
@@ -568,9 +560,7 @@ export default function Editor() {
                     className="bg-theme-surface border border-purple-500/50 rounded-xl px-6 py-4 flex items-center gap-3 shadow-2xl shadow-purple-500/20"
                   >
                     <RefreshCw size={24} className="text-purple-500 animate-spin" />
-                    <span className="text-theme-text font-bold tracking-wide">
-                      Restoring version...
-                    </span>
+                    <span className="text-theme-text font-bold tracking-wide">Restoring version...</span>
                   </motion.div>
                 </motion.div>
               )}
@@ -598,7 +588,6 @@ export default function Editor() {
           </AnimatePresence>
         </main>
 
-        {/* ── Chat Sidebar Pane ──────────────────────── */}
         <ChatSidebar
           connection={connection}
           isOpen={showChat}

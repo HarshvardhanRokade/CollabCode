@@ -252,6 +252,111 @@
     "ReturnTypes": []
   },
   {
+    "ContainingType": "CollabCode.API.Controllers.FilesController",
+    "Method": "GetFiles",
+    "RelativePath": "api/rooms/{roomId}/files",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "roomId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.FilesController",
+    "Method": "CreateFile",
+    "RelativePath": "api/rooms/{roomId}/files",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "roomId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "CollabCode.API.DTOs.CreateFileDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.FilesController",
+    "Method": "DeleteFile",
+    "RelativePath": "api/rooms/{roomId}/files/{fileId}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "roomId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "fileId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.FilesController",
+    "Method": "SetEntryPoint",
+    "RelativePath": "api/rooms/{roomId}/files/{fileId}/entry-point",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "roomId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "fileId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.FilesController",
+    "Method": "RenameFile",
+    "RelativePath": "api/rooms/{roomId}/files/{fileId}/rename",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "roomId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "fileId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "CollabCode.API.DTOs.RenameFileDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
     "ContainingType": "CollabCode.API.Controllers.SnapshotsController",
     "Method": "GetSnapshots",
     "RelativePath": "api/rooms/{roomId}/snapshots",

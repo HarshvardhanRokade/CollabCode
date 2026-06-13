@@ -15,6 +15,8 @@ public class AppDbContext : DbContext
 
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
 
+    public DbSet<CodeFile> CodeFiles => Set<CodeFile>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // User → owns many Rooms
@@ -54,6 +56,12 @@ public class AppDbContext : DbContext
             .HasOne(rt => rt.User)
             .WithMany(u => u.RefreshTokens)
             .HasForeignKey(rt => rt.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<CodeFile>()
+            .HasOne(f => f.Room)
+            .WithMany(r => r.Files)
+            .HasForeignKey(f => f.RoomId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

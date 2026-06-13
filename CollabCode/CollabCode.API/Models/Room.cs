@@ -8,6 +8,8 @@ public class Room
     public string Name { get; set; } = string.Empty;
     public string Language { get; set; } = "javascript";
     public string CurrentCode { get; set; } = string.Empty;
+
+    public ICollection<CodeFile> Files { get; set; } = new List<CodeFile>();
     public bool IsPublic { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

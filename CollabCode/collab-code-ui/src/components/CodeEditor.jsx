@@ -12,11 +12,12 @@ const USER_COLORS = [
 
 export default function CodeEditor({
   roomId,
-  language,
+  activeFile,
   connection,
   onMount,
+  onFileContentUpdate // NEW: Handle background file updates
 }) {
-  const { theme } = useTheme(); // Pull current theme for dynamic switching
+  const { theme } = useTheme();
   
   const prevContentRef = useRef('');
   const versionRef = useRef(0);
@@ -26,8 +27,9 @@ export default function CodeEditor({
   const editorRef = useRef(null);
   const monacoRef = useRef(null);
   const cursorThrottleRef = useRef(null);
+  const activeFileIdRef = useRef(activeFile?.id);
 
-  // Room-isolated tracking caches to prevent memory leaks across sessions
+  // Room-isolated tracking caches
   const userDecorationsRef = useRef({});
   const userColorMapRef = useRef({});
   const colorIndexRef = useRef(0);
@@ -40,14 +42,29 @@ export default function CodeEditor({
     return userColorMapRef.current[userId];
   };
 
+  // ── Update editor content when switching file tabs ──
+  useEffect(() => {
+    activeFileIdRef.current = activeFile?.id;
+    if (editorRef.current && activeFile) {
+      isApplyingRef.current = true;
+      editorRef.current.setValue(activeFile.content || '');
+      prevContentRef.current = activeFile.content || '';
+      isApplyingRef.current = false;
+    }
+  }, [activeFile?.id]);
+
   const handleMount = (editor, monaco) => {
     editorRef.current = editor;
     monacoRef.current = monaco;
     
-    // Pass the monaco instance up to Editor.jsx
     if (onMount) onMount(editor, monaco);
 
-    // ── Add Keyboard Shortcut for Formatting (Ctrl+Shift+F) ──
+    // Set initial content if available on mount
+    if (activeFile) {
+      editor.setValue(activeFile.content || '');
+      prevContentRef.current = activeFile.content || '';
+    }
+
     editor.addCommand(
       monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyF,
       () => {
@@ -66,15 +83,15 @@ export default function CodeEditor({
       const ops = diffToOps(prev, current, versionRef.current++, 'local');
       prevContentRef.current = current;
 
-      if (connection && connection.state === 'Connected') {
+      if (connection && connection.state === 'Connected' && activeFileIdRef.current) {
         ops.forEach(op => {
-          connection.invoke('SendOperation', roomId, op)
+          connection.invoke('SendOperation', roomId, activeFileIdRef.current, op)
             .catch(err => console.error('SendOperation error:', err));
         });
       }
     });
 
-    // ── 2. Listen for Local Cursor Movements (Throttled to 100ms) ──
+    // ── 2. Listen for Local Cursor Movements ──
     editor.onDidChangeCursorPosition((e) => {
       if (isApplyingRef.current) return;
       if (!connection || connection.state !== 'Connected') return;
@@ -98,8 +115,14 @@ export default function CodeEditor({
   useEffect(() => {
     if (!connection) return;
 
-    const handleReceiveOperation = (op) => {
+    const handleReceiveOperation = (fileId, op) => {
       if (!editorRef.current) return;
+      
+      // FIX: If the operation is for a background tab, update parent state!
+      if (fileId !== activeFileIdRef.current) {
+        if (onFileContentUpdate) onFileContentUpdate(fileId, op);
+        return; 
+      }
 
       isApplyingRef.current = true;
       const editor = editorRef.current;
@@ -125,26 +148,9 @@ export default function CodeEditor({
 
     connection.on('ReceiveOperation', handleReceiveOperation);
     return () => connection.off('ReceiveOperation', handleReceiveOperation);
-  }, [connection]);
+  }, [connection, onFileContentUpdate]);
 
-  // ── 4. Effect: Receive Initial Document Hydration ──
-  useEffect(() => {
-    if (!connection) return;
-
-    const handleInitialCode = (code) => {
-      if (editorRef.current) {
-        isApplyingRef.current = true;
-        editorRef.current.setValue(code || '');
-        prevContentRef.current = code || '';
-        isApplyingRef.current = false;
-      }
-    };
-
-    connection.on('InitialCode', handleInitialCode);
-    return () => connection.off('InitialCode', handleInitialCode);
-  }, [connection]);
-
-  // ── 5. Effect: Draw Other Users' Remote Cursors ──
+  // ── 4. Effect: Draw Other Users' Remote Cursors ──
   useEffect(() => {
     if (!connection) return;
 
@@ -161,18 +167,13 @@ export default function CodeEditor({
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-          /* The thin sleek vertical caret */
           .cursor-${safeUserId} {
             border-left: 2px solid ${color} !important;
           }
-          
-          /* The anchor label element layout */
           .cursor-label-${safeUserId} {
             position: absolute;
             z-index: 100;
           }
-          
-          /* Floating name badge anchored completely above the text row */
           .cursor-label-${safeUserId}::after {
             content: "${userName}";
             position: absolute;
@@ -235,7 +236,7 @@ export default function CodeEditor({
     cpp:        'cpp',
     go:         'go',
     rust:       'rust',
-  }[language] || 'javascript';
+  }[activeFile?.language] || 'javascript';
 
   return (
     <div className="w-full h-full bg-theme-base transition-colors duration-300">
@@ -261,7 +262,7 @@ export default function CodeEditor({
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,
           glyphMargin: true,
-          formatOnPaste: true, // Auto-format pasted code
+          formatOnPaste: true, 
           scrollbar: {
             verticalScrollbarSize: 8,
             horizontalScrollbarSize: 8,
