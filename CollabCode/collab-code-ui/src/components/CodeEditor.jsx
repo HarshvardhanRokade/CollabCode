@@ -15,7 +15,9 @@ export default function CodeEditor({
   activeFile,
   connection,
   onMount,
-  onFileContentUpdate // NEW: Handle background file updates
+  onFileContentUpdate,
+  onError,   // Handle operation errors
+  onWarning  // Handle paste warnings
 }) {
   const { theme } = useTheme();
   
@@ -72,11 +74,29 @@ export default function CodeEditor({
       }
     );
 
-    // ── 1. Listen for Content Changes (OT Engine) ──
+    // ── 1. Listen for Content Changes (OT Engine & Size Limits) ──
     editor.onDidChangeModelContent(() => {
       if (isApplyingRef.current) return;
 
       const current = editor.getValue();
+      
+      // FIX: Block oversized content immediately to protect the SignalR connection
+      if (current.length > 500_000) {
+        isApplyingRef.current = true;
+        editor.trigger('keyboard', 'undo', null);
+        prevContentRef.current = editor.getValue();
+        isApplyingRef.current = false;
+        
+        if (onError) onError('File size limit (500KB) reached — paste blocked!');
+        return; // Don't send operation
+      }
+
+      // Warn at 400KB
+      if (current.length > 400_000) {
+        const sizeKB = Math.round(current.length / 1024);
+        if (onWarning) onWarning(`File is ${sizeKB}KB — approaching 500KB limit`);
+      }
+
       const prev = prevContentRef.current;
       if (current === prev) return;
 
@@ -146,9 +166,18 @@ export default function CodeEditor({
       isApplyingRef.current = false;
     };
 
+    const handleOperationError = (message) => {
+      if (onError) onError(message);
+    };
+
     connection.on('ReceiveOperation', handleReceiveOperation);
-    return () => connection.off('ReceiveOperation', handleReceiveOperation);
-  }, [connection, onFileContentUpdate]);
+    connection.on('OperationError', handleOperationError); // Catch file limit errors from server
+
+    return () => {
+      connection.off('ReceiveOperation', handleReceiveOperation);
+      connection.off('OperationError', handleOperationError);
+    };
+  }, [connection, onFileContentUpdate, onError]);
 
   // ── 4. Effect: Draw Other Users' Remote Cursors ──
   useEffect(() => {
@@ -167,29 +196,15 @@ export default function CodeEditor({
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
-          .cursor-${safeUserId} {
-            border-left: 2px solid ${color} !important;
-          }
-          .cursor-label-${safeUserId} {
-            position: absolute;
-            z-index: 100;
-          }
+          .cursor-${safeUserId} { border-left: 2px solid ${color} !important; }
+          .cursor-label-${safeUserId} { position: absolute; z-index: 100; }
           .cursor-label-${safeUserId}::after {
             content: "${userName}";
-            position: absolute;
-            bottom: 100%;
-            left: 0;
-            background: ${color};
-            color: #FFFFFF;
-            font-size: 10px;
-            font-family: system-ui, -apple-system, sans-serif;
-            font-weight: 700;
-            padding: 1px 5px;
-            border-radius: 4px 4px 4px 0px;
-            white-space: nowrap;
-            line-height: normal;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-            transform: translateY(-2px);
+            position: absolute; bottom: 100%; left: 0;
+            background: ${color}; color: #FFFFFF; font-size: 10px;
+            font-family: system-ui, -apple-system, sans-serif; font-weight: 700;
+            padding: 1px 5px; border-radius: 4px 4px 4px 0px; white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); transform: translateY(-2px);
             pointer-events: none;
           }
         `;
@@ -234,13 +249,11 @@ export default function CodeEditor({
     const handleUserLeft = (userName, userId) => {
       if (!editorRef.current) return;
       
-      // Remove Monaco decoration
       if (userDecorationsRef.current[userId]) {
         editorRef.current.deltaDecorations(userDecorationsRef.current[userId], []);
         delete userDecorationsRef.current[userId];
       }
       
-      // Remove injected CSS style block
       const safeUserId = userId.replace(/-/g, '');
       const styleId = `cursor-style-${safeUserId}`;
       const styleEl = document.getElementById(styleId);

@@ -26,11 +26,13 @@ public class CodeCollabHub : Hub
     private static readonly ConcurrentDictionary<string, string>
         _pendingFileCode = new();
 
-    public CodeCollabHub(AppDbContext db, OTService ot, IServiceProvider serviceProvider)
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public CodeCollabHub(AppDbContext db, OTService ot, IServiceScopeFactory scopeFactory)
     {
         _db = db;
         _ot = ot;
-        _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task JoinRoom(string roomId)
@@ -112,37 +114,65 @@ public class CodeCollabHub : Hub
 
     public async Task SendOperation(string roomId, string fileId, Operation operation)
     {
-        var key = $"{roomId}:{fileId}";
-        var ops = _fileOperations.GetOrAdd(key, _ => new List<Operation>());
-
-        Operation transformed = operation;
-
-        lock (ops)
+        try
         {
-            var concurrent = ops.Where(o =>
-                o.Version >= operation.Version &&
-                o.UserId != operation.UserId).ToList();
+            if (operation.Text?.Length > 50000)
+            {
+                await Clients.Caller.SendAsync("OperationError",
+                    "Paste too large — maximum 50KB per paste.");
+                return;
+            }
 
-            foreach (var concurrentOp in concurrent)
-                transformed = _ot.Transform(transformed, concurrentOp);
+            if (!Guid.TryParse(fileId, out var fileGuid))
+                return;
 
-            transformed.Version = ops.Count;
-            ops.Add(transformed);
+            var key = $"{roomId}:{fileId}";
+            var ops = _fileOperations.GetOrAdd(key, _ => new List<Operation>());
 
-            if (ops.Count > 100)
-                ops.RemoveAt(0);
-        }
+            Operation transformed = operation;
 
-        var file = await _db.CodeFiles.FirstOrDefaultAsync(f => f.Id == Guid.Parse(fileId));
-        if (file != null)
-        {
-            var newCode = _ot.Apply(file.Content, transformed);
-            _pendingFileCode[key] = newCode;
+            lock (ops)
+            {
+                var concurrent = ops.Where(o =>
+                    o.Version >= operation.Version &&
+                    o.UserId != operation.UserId).ToList();
+
+                foreach (var concurrentOp in concurrent)
+                    transformed = _ot.Transform(transformed, concurrentOp);
+
+                transformed.Version = ops.Count;
+                ops.Add(transformed);
+                if (ops.Count > 100) ops.RemoveAt(0);
+            }
+
+            // Check if we have cached content — if not load once from DB
+            if (!_pendingFileCode.ContainsKey(key))
+            {
+                var file = await _db.CodeFiles
+                    .FirstOrDefaultAsync(f => f.Id == fileGuid);
+                _pendingFileCode[key] = file?.Content ?? "";
+            }
+
+            // Apply operation to cached content — NO DB query!
+            var newContent = _ot.Apply(_pendingFileCode[key], transformed);
+
+            if (newContent.Length > 500_000)
+            {
+                await Clients.Caller.SendAsync("OperationError", "File size limit (500KB) reached.");
+                return;
+            }
+
+            _pendingFileCode[key] = newContent;
             ScheduleFileSave(key, fileId);
-        }
 
-        await Clients.OthersInGroup(roomId).SendAsync(
-            "ReceiveOperation", fileId, transformed, Context.UserIdentifier);
+            await Clients.OthersInGroup(roomId).SendAsync(
+                "ReceiveOperation", fileId, transformed, Context.UserIdentifier);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"SendOperation error: {ex.Message}");
+            await Clients.Caller.SendAsync("OperationError", "Error processing edit.");
+        }
     }
 
     public async Task SendCursorPosition(string roomId, object position)
@@ -229,6 +259,8 @@ public class CodeCollabHub : Hub
             existingTimer.Dispose();
         }
 
+        var scopeFactory = _scopeFactory; // capture before timer
+
         var timer = new System.Timers.Timer(3000) { AutoReset = false };
 
         timer.Elapsed += async (sender, e) =>
@@ -237,17 +269,20 @@ public class CodeCollabHub : Hub
             {
                 if (_pendingFileCode.TryGetValue(key, out var code))
                 {
-                    using var scope = _serviceProvider.CreateScope();
+                    await using var scope = scopeFactory.CreateAsyncScope();
                     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+                    if (!Guid.TryParse(fileId, out var fileGuid)) return;
+
                     var file = await db.CodeFiles
-                        .FirstOrDefaultAsync(f => f.Id == Guid.Parse(fileId));
+                        .FirstOrDefaultAsync(f => f.Id == fileGuid);
 
                     if (file != null)
                     {
                         file.Content = code;
                         await db.SaveChangesAsync();
                         _pendingFileCode.TryRemove(key, out _);
+                        Console.WriteLine($"✅ Saved file {fileId}");
                     }
                 }
             }

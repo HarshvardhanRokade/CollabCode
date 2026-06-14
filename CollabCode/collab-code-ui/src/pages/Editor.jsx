@@ -178,7 +178,6 @@ export default function Editor() {
 
   // ── File Management Actions ──
 
-  // FIX: Intercept tab switch to save Monaco state before wiping it!
   const handleSwitchFile = (newFileId) => {
     if (editorRef.current && activeFileId) {
       const currentContent = editorRef.current.getValue();
@@ -189,7 +188,6 @@ export default function Editor() {
     setActiveFileId(newFileId);
   };
 
-  // FIX: Apply OT operations for background files directly to React state
   const handleFileContentUpdate = (fileId, op) => {
     setFiles(prev => prev.map(f => {
       if (f.id !== fileId) return f;
@@ -211,7 +209,7 @@ export default function Editor() {
     try {
       const res = await axiosInstance.post(`/rooms/${roomId}/files`, { name, language: lang });
       setFiles(prev => [...prev, res.data]);
-      handleSwitchFile(res.data.id); // Safely switch
+      handleSwitchFile(res.data.id); 
       connection?.invoke('SendFileCreated', roomId, res.data);
       toast.success(`Created ${name}`);
     } catch {
@@ -254,7 +252,6 @@ export default function Editor() {
     const entryFile = files.find(f => f.isEntryPoint) || activeFile;
     if (!entryFile) return;
 
-    // Grab current editor value if trying to run the active tab
     const code = entryFile.id === activeFileId
       ? editorRef.current?.getValue() || entryFile.content
       : entryFile.content;
@@ -314,10 +311,7 @@ export default function Editor() {
 
   const handleLanguageChange = async (newLang) => {
     if (!activeFile) return;
-    
-    // Optimistically update file state
     setFiles(prev => prev.map(f => f.id === activeFileId ? { ...f, language: newLang } : f));
-    
     try {
       if (connection && connection.state === 'Connected') {
         await connection.invoke('SendLanguageChange', roomId, newLang);
@@ -511,13 +505,13 @@ export default function Editor() {
       {/* ── Main Layout Wrapper ──────────────────────── */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
         
-        {/* Workspace Column (Editor + Terminal) */}
+        {/* Workspace Column */}
         <main className="flex flex-col flex-1 min-h-0 relative overflow-hidden">
           
           <FileTabs
             files={files}
             activeFileId={activeFileId}
-            onSwitchFile={handleSwitchFile} // FIX: Updated to use interceptor function
+            onSwitchFile={handleSwitchFile}
             onCreateFile={handleCreateFile}
             onDeleteFile={handleDeleteFile}
             onRenameFile={handleRenameFile}
@@ -529,7 +523,9 @@ export default function Editor() {
                 roomId={roomId}
                 activeFile={activeFile}
                 connection={connection}
-                onFileContentUpdate={handleFileContentUpdate} // FIX: Prop wired up to catch background file updates
+                onFileContentUpdate={handleFileContentUpdate}
+                onError={(msg) => toast.error(msg)}           // NEW: Wire up error toasts
+                onWarning={(msg) => toast(msg, { icon: '⚠️' })} // NEW: Wire up warning toasts
                 onMount={(editor, monaco) => { 
                   editorRef.current = editor; 
                   monacoInstanceRef.current = monaco;
