@@ -178,6 +178,8 @@ public class CodeCollabHub : Hub
     private async Task HandleLeave(string roomId)
     {
         var userName = Context.User?.Identity?.Name ?? "Anonymous";
+        var userId = Context.UserIdentifier;
+
         await Groups.RemoveFromGroupAsync(Context.ConnectionId, roomId);
         _connections.TryRemove(Context.ConnectionId, out _);
 
@@ -186,7 +188,6 @@ public class CodeCollabHub : Hub
 
         if (!usersStillInRoom)
         {
-            // Clean up all file timers/operations for this room
             var keysToRemove = _saveTimers.Keys
                 .Where(k => k.StartsWith(roomId + ":"))
                 .ToList();
@@ -204,7 +205,7 @@ public class CodeCollabHub : Hub
         }
 
         await Clients.OthersInGroup(roomId).SendAsync(
-            "UserLeft", userName, Context.UserIdentifier);
+            "UserLeft", userName, userId); // ← pass userId
 
         await BroadcastRoomUsers(roomId);
     }

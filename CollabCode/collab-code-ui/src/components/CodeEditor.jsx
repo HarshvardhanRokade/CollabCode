@@ -118,7 +118,7 @@ export default function CodeEditor({
     const handleReceiveOperation = (fileId, op) => {
       if (!editorRef.current) return;
       
-      // FIX: If the operation is for a background tab, update parent state!
+      // If the operation is for a background tab, update parent state!
       if (fileId !== activeFileIdRef.current) {
         if (onFileContentUpdate) onFileContentUpdate(fileId, op);
         return; 
@@ -224,6 +224,33 @@ export default function CodeEditor({
         const el = document.getElementById(`cursor-style-${id.replace(/-/g, '')}`);
         if (el) el.remove();
       });
+    };
+  }, [connection]);
+
+  // ── 5. Effect: Handle Cursor Cleanup on Disconnect ──
+  useEffect(() => {
+    if (!connection) return;
+
+    const handleUserLeft = (userName, userId) => {
+      if (!editorRef.current) return;
+      
+      // Remove Monaco decoration
+      if (userDecorationsRef.current[userId]) {
+        editorRef.current.deltaDecorations(userDecorationsRef.current[userId], []);
+        delete userDecorationsRef.current[userId];
+      }
+      
+      // Remove injected CSS style block
+      const safeUserId = userId.replace(/-/g, '');
+      const styleId = `cursor-style-${safeUserId}`;
+      const styleEl = document.getElementById(styleId);
+      if (styleEl) styleEl.remove();
+    };
+
+    connection.on('UserLeft', handleUserLeft);
+    
+    return () => {
+      connection.off('UserLeft', handleUserLeft);
     };
   }, [connection]);
 
