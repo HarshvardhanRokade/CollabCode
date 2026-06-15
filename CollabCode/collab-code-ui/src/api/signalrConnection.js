@@ -19,14 +19,15 @@ export async function startConnection() {
   }
 
   const token = localStorage.getItem('token');
-
   if (!token) {
     isConnecting = false;
     throw new Error('No auth token found');
   }
 
+  const hubUrl = import.meta.env.VITE_HUB_URL;
+
   connection = new signalR.HubConnectionBuilder()
-    .withUrl(`https://localhost:7222/hubs/code?access_token=${token}`, {
+    .withUrl(`${hubUrl}?access_token=${token}`, {
       skipNegotiation: true,
       transport: signalR.HttpTransportType.WebSockets,
     })

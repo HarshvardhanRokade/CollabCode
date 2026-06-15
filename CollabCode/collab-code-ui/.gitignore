@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment secrets
+.env.production
+.env.local
+
+# Backend secrets
+appsettings.Production.json
