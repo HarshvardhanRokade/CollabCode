@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("CollabCode.API")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+524597f77570aaee93f7342c48b4fffd6d21d52f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8b098ac3951a28aec5ce90920baa1fca0bf058c1")]
 [assembly: System.Reflection.AssemblyProductAttribute("CollabCode.API")]
 [assembly: System.Reflection.AssemblyTitleAttribute("CollabCode.API")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

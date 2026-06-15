@@ -129,6 +129,17 @@ builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
 
 var app = builder.Build();
 
+// Validate critical config on startup
+var allowedOrigins = app.Configuration
+    .GetSection("AllowedOrigins")
+    .Get<string[]>();
+
+if (allowedOrigins == null || allowedOrigins.Length == 0)
+{
+    throw new InvalidOperationException(
+        "AllowedOrigins config is missing! Add it to appsettings.json");
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
