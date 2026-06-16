@@ -69,6 +69,7 @@ public class FileService
     public async Task<bool> DeleteFileAsync(Guid roomId, Guid fileId)
     {
         var file = await _db.CodeFiles
+            .AsTracking()
             .FirstOrDefaultAsync(f => f.Id == fileId && f.RoomId == roomId);
         if (file == null) return false;
 
@@ -80,6 +81,7 @@ public class FileService
         if (file.IsEntryPoint)
         {
             var other = await _db.CodeFiles
+                .AsTracking()
                 .Where(f => f.RoomId == roomId && f.Id != fileId)
                 .OrderBy(f => f.Order)
                 .FirstOrDefaultAsync();
@@ -94,6 +96,7 @@ public class FileService
     public async Task<bool> RenameFileAsync(Guid roomId, Guid fileId, RenameFileDto dto)
     {
         var file = await _db.CodeFiles
+            .AsTracking()
             .FirstOrDefaultAsync(f => f.Id == fileId && f.RoomId == roomId);
         if (file == null) return false;
 
@@ -104,11 +107,27 @@ public class FileService
 
     public async Task<bool> SetEntryPointAsync(Guid roomId, Guid fileId)
     {
-        var files = await _db.CodeFiles.Where(f => f.RoomId == roomId).ToListAsync();
+        var files = await _db.CodeFiles
+            .AsTracking()
+            .Where(f => f.RoomId == roomId)
+            .ToListAsync();
         var target = files.FirstOrDefault(f => f.Id == fileId);
         if (target == null) return false;
 
         foreach (var f in files) f.IsEntryPoint = (f.Id == fileId);
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<bool> UpdateFileContentAsync(Guid roomId, Guid fileId, string content)
+    {
+        var file = await _db.CodeFiles
+            .AsTracking()
+            .FirstOrDefaultAsync(f => f.Id == fileId && f.RoomId == roomId);
+
+        if (file == null) return false;
+
+        file.Content = content;
         await _db.SaveChangesAsync();
         return true;
     }

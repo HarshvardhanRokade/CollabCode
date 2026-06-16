@@ -56,6 +56,7 @@ public class AuthService
     {
         // Find the refresh token in DB
         var storedToken = await _db.RefreshTokens
+            .AsTracking()
             .Include(rt => rt.User)
             .FirstOrDefaultAsync(rt =>
                 rt.Token == refreshToken &&
@@ -75,6 +76,7 @@ public class AuthService
     public async Task RevokeRefreshTokenAsync(string refreshToken)
     {
         var token = await _db.RefreshTokens
+            .AsTracking()
             .FirstOrDefaultAsync(rt => rt.Token == refreshToken);
 
         if (token != null)
@@ -132,6 +134,7 @@ public class AuthService
     {
         // Revoke all existing refresh tokens for this user
         var existingTokens = await _db.RefreshTokens
+            .AsTracking()
             .Where(rt => rt.UserId == userId && !rt.IsRevoked)
             .ToListAsync();
 

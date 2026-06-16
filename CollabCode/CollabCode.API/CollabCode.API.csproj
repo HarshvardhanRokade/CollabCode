@@ -23,4 +23,6 @@
     <PackageReference Include="Scalar.AspNetCore" Version="2.0.0" />
   </ItemGroup>
 
+  <ProjectExtensions><VisualStudio><UserProperties appsettings_1json__JsonSchema="" /></VisualStudio></ProjectExtensions>
+
 </Project>

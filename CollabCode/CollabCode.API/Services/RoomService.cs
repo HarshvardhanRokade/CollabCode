@@ -111,6 +111,7 @@ public class RoomService
     public async Task<RoomResponseDto?> UpdateRoomAsync(Guid roomId, UpdateRoomDto dto, Guid userId)
     {
         var room = await _db.Rooms
+            .AsTracking()
             .Include(r => r.Owner)
             .Include(r => r.Participants)
             .FirstOrDefaultAsync(r => r.Id == roomId);
@@ -128,7 +129,9 @@ public class RoomService
     // Soft delete — sets flag instead of removing
     public async Task<bool> DeleteRoomAsync(Guid roomId, Guid userId)
     {
-        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        var room = await _db.Rooms
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == roomId);
         if (room == null || room.CreatedBy != userId) return false;
 
         room.IsDeleted = true;
@@ -153,7 +156,9 @@ public class RoomService
     // Restore from trash
     public async Task<bool> RestoreRoomAsync(Guid roomId, Guid userId)
     {
-        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        var room = await _db.Rooms
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == roomId);
         if (room == null || room.CreatedBy != userId || !room.IsDeleted) return false;
 
         room.IsDeleted = false;
@@ -165,7 +170,9 @@ public class RoomService
     // Permanent delete from trash
     public async Task<bool> PermanentlyDeleteRoomAsync(Guid roomId, Guid userId)
     {
-        var room = await _db.Rooms.FirstOrDefaultAsync(r => r.Id == roomId);
+        var room = await _db.Rooms
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == roomId);
         if (room == null || room.CreatedBy != userId || !room.IsDeleted) return false;
 
         _db.Rooms.Remove(room);

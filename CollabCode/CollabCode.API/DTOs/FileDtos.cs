@@ -26,3 +26,8 @@ public class FileResponseDto
     public bool IsEntryPoint { get; set; }
     public int Order { get; set; }
 }
+
+public class UpdateFileContentDto
+{
+    public string Content { get; set; } = string.Empty;
+}

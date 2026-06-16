@@ -53,4 +53,12 @@ public class FilesController : ControllerBase
         if (!success) return NotFound();
         return Ok(new { message = "Entry point updated." });
     }
+
+    [HttpPut("{fileId}/content")]
+    public async Task<IActionResult> UpdateContent(Guid roomId, Guid fileId, [FromBody] UpdateFileContentDto dto)
+    {
+        var success = await _fileService.UpdateFileContentAsync(roomId, fileId, dto.Content);
+        if (!success) return NotFound();
+        return Ok();
+    }
 }

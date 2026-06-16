@@ -311,6 +311,32 @@
   },
   {
     "ContainingType": "CollabCode.API.Controllers.FilesController",
+    "Method": "UpdateContent",
+    "RelativePath": "api/rooms/{roomId}/files/{fileId}/content",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "roomId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "fileId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "CollabCode.API.DTOs.UpdateFileContentDto",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "CollabCode.API.Controllers.FilesController",
     "Method": "SetEntryPoint",
     "RelativePath": "api/rooms/{roomId}/files/{fileId}/entry-point",
     "HttpMethod": "POST",

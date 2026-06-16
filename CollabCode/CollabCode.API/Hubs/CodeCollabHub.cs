@@ -299,11 +299,22 @@ public class CodeCollabHub : Hub
     public async Task SendLanguageChange(string roomId, string language)
     {
         var room = await _db.Rooms
+            .AsTracking()
             .FirstOrDefaultAsync(r => r.Id == Guid.Parse(roomId));
 
         if (room != null)
         {
             room.Language = language;
+
+            // Also update active entry point file language
+            var entryFile = await _db.CodeFiles
+                .AsTracking()
+                .Where(f => f.RoomId == room.Id && f.IsEntryPoint)
+                .FirstOrDefaultAsync();
+
+            if (entryFile != null)
+                entryFile.Language = language;
+
             await _db.SaveChangesAsync();
         }
 

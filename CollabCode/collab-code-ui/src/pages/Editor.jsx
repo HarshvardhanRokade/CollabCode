@@ -64,6 +64,7 @@ export default function Editor() {
   const [files, setFiles] = useState([]);
   const [activeFileId, setActiveFileId] = useState(null);
   const activeFile = files.find(f => f.id === activeFileId) || null;
+  const activeFileIdRef = useRef(activeFileId);
 
   // --- Tools State ---
   const [stdin, setStdin] = useState('');
@@ -80,9 +81,33 @@ export default function Editor() {
   const monacoInstanceRef = useRef(null);
   const errorDecorationRef = useRef([]);
 
+  // Sync refs for closure access
   useEffect(() => { 
     showChatRef.current = showChat; 
   }, [showChat]);
+  
+  useEffect(() => { 
+    activeFileIdRef.current = activeFileId; 
+  }, [activeFileId]);
+
+  // ── Fix: Force save before page unload ──
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (editorRef.current && activeFileId) {
+        const content = editorRef.current.getValue();
+        // Use sendBeacon for reliable save on page close
+        const url = `${import.meta.env.VITE_API_URL}/rooms/${roomId}/files/${activeFileId}/content`;
+        const blob = new Blob(
+          [JSON.stringify({ content })],
+          { type: 'application/json' }
+        );
+        navigator.sendBeacon(url, blob);
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [activeFileId, roomId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,7 +168,7 @@ export default function Editor() {
 
         conn.on('FileDeleted', (fileId) => {
           setFiles(prev => prev.filter(f => f.id !== fileId));
-          if (activeFileId === fileId) {
+          if (activeFileIdRef.current === fileId) {
             setFiles(prev => {
               if (prev.length > 0) setActiveFileId(prev[0].id);
               return prev;
@@ -153,6 +178,15 @@ export default function Editor() {
 
         conn.on('FileRenamed', (fileId, newName) => {
           setFiles(prev => prev.map(f => f.id === fileId ? { ...f, name: newName } : f));
+        });
+
+        // ── Fix: File language update on ReceiveLanguageChange ──
+        conn.on('ReceiveLanguageChange', (lang) => {
+          // Update active file's language in state utilizing ref to avoid stale closures
+          setFiles(prev => prev.map(f =>
+            f.id === activeFileIdRef.current ? { ...f, language: lang } : f
+          ));
+          toast(`Language changed to ${lang}`, { icon: '🔤' });
         });
 
         await conn.invoke('JoinRoom', roomId);
@@ -324,12 +358,21 @@ export default function Editor() {
   const handleSaveSnapshot = async () => {
     const message = prompt('Snapshot message (like a git commit):');
     if (message === null) return;
+    
     try {
+      if (editorRef.current && activeFileId) {
+        const currentCode = editorRef.current.getValue();
+        await axiosInstance.put(`/rooms/${roomId}/files/${activeFileId}/content`, {
+          content: currentCode
+        });
+      }
+
       await axiosInstance.post(`/rooms/${roomId}/snapshots`, {
         message: message || `Snapshot at ${new Date().toLocaleTimeString()}`
       });
-      toast.success('Snapshot saved!');
-    } catch {
+      toast.success('Snapshot saved! 📸');
+    } catch (error) {
+      console.error('Snapshot error:', error);
       toast.error('Failed to save snapshot');
     }
   };
@@ -524,8 +567,8 @@ export default function Editor() {
                 activeFile={activeFile}
                 connection={connection}
                 onFileContentUpdate={handleFileContentUpdate}
-                onError={(msg) => toast.error(msg)}           // NEW: Wire up error toasts
-                onWarning={(msg) => toast(msg, { icon: '⚠️' })} // NEW: Wire up warning toasts
+                onError={(msg) => toast.error(msg)}
+                onWarning={(msg) => toast(msg, { icon: '⚠️' })}
                 onMount={(editor, monaco) => { 
                   editorRef.current = editor; 
                   monacoInstanceRef.current = monaco;
