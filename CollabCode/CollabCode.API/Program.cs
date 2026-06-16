@@ -102,7 +102,10 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddScoped<RoomService>();
 builder.Services.AddScoped<SnapshotService>();
-builder.Services.AddHttpClient<ExecutionService>();
+builder.Services.AddHttpClient<ExecutionService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30); // ← 30 second max
+});
 builder.Services.AddSingleton<OTService>(); // ← Singleton because it's stateless
 
 // CORS

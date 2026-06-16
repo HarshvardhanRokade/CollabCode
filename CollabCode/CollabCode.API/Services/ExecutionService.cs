@@ -29,65 +29,94 @@ public class ExecutionService
 
     public async Task<ExecutionResponseDto> ExecuteAsync(ExecutionRequestDto dto)
     {
-        var baseUrl = _config["Judge0:BaseUrl"]!;
-
-        if (!_languageIds.TryGetValue(dto.Language.ToLower(), out var languageId))
-            languageId = 93;
-
-        var submitRequest = new
+        try
         {
-            source_code = Convert.ToBase64String(Encoding.UTF8.GetBytes(dto.Code)),
-            language_id = languageId,
-            stdin = Convert.ToBase64String(Encoding.UTF8.GetBytes(dto.Input)),
-            encode_stdin = true,
-            encoded = true
-        };
+            var baseUrl = _config["Judge0:BaseUrl"]!;
 
-        // Submit code
-        var submitMsg = new HttpRequestMessage(HttpMethod.Post,
-            $"{baseUrl}/submissions?base64_encoded=true&wait=false");
-        submitMsg.Content = new StringContent(
-            JsonSerializer.Serialize(submitRequest),
-            Encoding.UTF8,
-            "application/json"
-        );
+            if (!_languageIds.TryGetValue(dto.Language.ToLower(), out var languageId))
+                languageId = 93;
 
-        var submitResponse = await _http.SendAsync(submitMsg);
-        var submitBody = await submitResponse.Content.ReadAsStringAsync();
+            var submitRequest = new
+            {
+                source_code = Convert.ToBase64String(Encoding.UTF8.GetBytes(dto.Code)),
+                language_id = languageId,
+                stdin = Convert.ToBase64String(Encoding.UTF8.GetBytes(dto.Input)),
+                encode_stdin = true,
+                encoded = true
+            };
 
-        var submitResult = JsonSerializer.Deserialize<JsonElement>(submitBody);
-        if (!submitResult.TryGetProperty("token", out var tokenElement))
+            // Submit code
+            var submitMsg = new HttpRequestMessage(HttpMethod.Post,
+                $"{baseUrl}/submissions?base64_encoded=true&wait=false");
+            submitMsg.Content = new StringContent(
+                JsonSerializer.Serialize(submitRequest),
+                Encoding.UTF8,
+                "application/json"
+            );
+
+            var submitResponse = await _http.SendAsync(submitMsg);
+            var submitBody = await submitResponse.Content.ReadAsStringAsync();
+
+            var submitResult = JsonSerializer.Deserialize<JsonElement>(submitBody);
+            if (!submitResult.TryGetProperty("token", out var tokenElement))
+            {
+                return new ExecutionResponseDto
+                {
+                    Error = $"Submission failed: {submitBody}",
+                    Status = "Error"
+                };
+            }
+
+            var token = tokenElement.GetString()!;
+
+            // Poll for result — max 10 attempts x 1 second = 10 seconds
+            JsonElement result = default;
+            for (int i = 0; i < 10; i++)
+            {
+                await Task.Delay(1000);
+
+                var getMsg = new HttpRequestMessage(HttpMethod.Get,
+                    $"{baseUrl}/submissions/{token}?base64_encoded=true");
+
+                var getResponse = await _http.SendAsync(getMsg);
+                var getBody = await getResponse.Content.ReadAsStringAsync();
+                result = JsonSerializer.Deserialize<JsonElement>(getBody);
+
+                if (result.TryGetProperty("status", out var statusEl))
+                {
+                    var statusId = statusEl.GetProperty("id").GetInt32();
+                    if (statusId > 2) break;
+                }
+            }
+
+            return ParseResult(result);
+        }
+        catch (TaskCanceledException)
+        {
+            // HttpClient timeout fired
+            return new ExecutionResponseDto
+            {
+                Error = "Code execution timed out. Judge0 took too long to respond.",
+                Status = "Timeout"
+            };
+        }
+        catch (HttpRequestException ex)
+        {
+            // Network error — Judge0 is down
+            return new ExecutionResponseDto
+            {
+                Error = $"Could not reach execution service: {ex.Message}",
+                Status = "Unavailable"
+            };
+        }
+        catch (Exception ex)
         {
             return new ExecutionResponseDto
             {
-                Error = $"Submission failed: {submitBody}",
+                Error = $"Unexpected error: {ex.Message}",
                 Status = "Error"
             };
         }
-
-        var token = tokenElement.GetString()!;
-
-        // Poll for result
-        JsonElement result = default;
-        for (int i = 0; i < 10; i++)
-        {
-            await Task.Delay(1000);
-
-            var getMsg = new HttpRequestMessage(HttpMethod.Get,
-                $"{baseUrl}/submissions/{token}?base64_encoded=true");
-
-            var getResponse = await _http.SendAsync(getMsg);
-            var getBody = await getResponse.Content.ReadAsStringAsync();
-            result = JsonSerializer.Deserialize<JsonElement>(getBody);
-
-            if (result.TryGetProperty("status", out var statusEl))
-            {
-                var statusId = statusEl.GetProperty("id").GetInt32();
-                if (statusId > 2) break;
-            }
-        }
-
-        return ParseResult(result);
     }
 
     private ExecutionResponseDto ParseResult(JsonElement result)
