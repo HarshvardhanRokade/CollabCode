@@ -501,6 +501,7 @@ export default function Dashboard() {
                   >
                     {creating ? <Loader2 size={16} className="animate-spin" /> : null}
                     {creating ? 'Creating...' : 'Launch Workspace'}
+                    {creating ? 'Creating...' : 'Launch Workspace'}
                   </button>
                 </div>
               </form>
