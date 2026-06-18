@@ -335,9 +335,20 @@ export default function Dashboard() {
                     <div className="w-10 h-10 rounded-xl bg-theme-elevated border border-theme-border flex items-center justify-center">
                       <FileCode2 className={`w-5 h-5 ${languageTheme[room.language]?.split(' ')[0] || 'text-theme-muted'}`} />
                     </div>
-                    <span className={`px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded border ${languageTheme[room.language] || 'text-theme-muted bg-theme-elevated border-theme-border'}`}>
-                      {room.language}
-                    </span>
+                    
+                    {/* ── Delete Button & Badge Group ── */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => handleDeleteRoom(room.id, e)}
+                        className="p-1.5 text-theme-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
+                        title="Move to Trash"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                      <span className={`px-2.5 py-1 text-[10px] font-mono font-bold uppercase tracking-wider rounded border ${languageTheme[room.language] || 'text-theme-muted bg-theme-elevated border-theme-border'}`}>
+                        {room.language}
+                      </span>
+                    </div>
                   </div>
 
                   <h3 className="text-lg font-bold text-theme-text truncate pr-8 group-hover:text-purple-500 transition-colors">
@@ -354,14 +365,6 @@ export default function Dashboard() {
                       {room.isPublic ? 'Public' : 'Private'}
                     </span>
                   </div>
-
-                  <button
-                    onClick={(e) => handleDeleteRoom(room.id, e)}
-                    className="absolute top-5 right-5 p-2 text-theme-muted hover:text-red-500 hover:bg-red-500/10 rounded-lg opacity-0 group-hover:opacity-100 transition-all"
-                    title="Move to Trash"
-                  >
-                    <Trash2 size={16} />
-                  </button>
                 </motion.div>
               ))}
             </div>
